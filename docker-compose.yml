@@ -1,0 +1,30 @@
+services:
+  zomboid-status:
+    image: zomboid-status:latest
+    container_name: zomboid-status
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /path/to/rcon.yaml:/run/secrets/pz-rcon:ro
+      - /path/to/caretaking.log:/data/pz-caretaking.log:ro
+      - /run/pz-helper/helper.sock:/run/pz-helper.sock
+      - /opt/app/zomboid/config/Server/YourServerName.ini:/run/secrets/server.ini:ro
+      - /opt/app/zomboid/config/storms:/data/pz-storms:ro
+      - /opt/app/zomboid/config/db:/data/pz-db:ro
+      - /opt/app/zomboid/config/Logs:/data/pz-logs:ro
+      - /opt/app/zomboid-status/content-overrides:/data/content
+    environment:
+      - RCON_HOST=127.0.0.1
+      - RCON_PORT=27015
+      - RCON_PASS_FILE=/run/secrets/pz-rcon
+      - CARETAKING_LOG=/data/pz-caretaking.log
+      - HELPER_SOCK=/run/pz-helper.sock
+      - SERVER_INI=/run/secrets/server.ini
+      - EVENTS_DIR=/data/pz-storms
+      - LOGS_DIR=/data/pz-logs
+      - CONTENT_OVERRIDE_DIR=/data/content
+      - PLAYER_DB=/data/pz-db/YourServerName.db
+      - APP_PORT=8080
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}

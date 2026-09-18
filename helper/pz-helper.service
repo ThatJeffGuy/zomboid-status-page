@@ -1,0 +1,18 @@
+[Unit]
+Description=Privileged helper daemon for the Zomboid status web app
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=pzhelper
+Group=pzhelper
+RuntimeDirectory=pz-helper
+RuntimeDirectoryMode=0770
+Environment=PZ_HELPER_SOCK=/run/pz-helper/helper.sock
+ExecStart=/usr/bin/python3 /opt/app/zomboid-status/helper/pz-helper.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

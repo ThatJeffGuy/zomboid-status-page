@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Zomboid Server{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%A7%9F</text></svg>">
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-grid">
+      <div class="brand-block">
+        <a class="brand" href="/">{{ site_settings.brand_title }}</a>
+        <a class="brand-subtitle" href="{{ site_settings.brand_subtitle_url }}" target="_blank" rel="noopener">{{ site_settings.brand_subtitle_text }}</a>
+      </div>
+      <details class="collapsible collapsible-heading topbar-actions">
+        <summary>All the links</summary>
+        <div class="topbar-links">
+          <div class="link-group link-group-green">
+            <div class="link-group-buttons">
+              <a class="footer-button" href="https://discord.gg/YOUR_INVITE" target="_blank" rel="noopener">Discord</a>
+            </div>
+            <p class="link-group-label">Community</p>
+          </div>
+          <div class="link-group link-group-purple">
+            <div class="link-group-buttons">
+              <a class="footer-button" href="https://store.steampowered.com/app/108600/Project_Zomboid/" target="_blank" rel="noopener">Buy Zomboid</a>
+            </div>
+            <p class="link-group-label">Project Zomboid</p>
+          </div>
+        </div>
+      </details>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

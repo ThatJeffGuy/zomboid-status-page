@@ -1,0 +1,1 @@
+pzhelper ALL=(root) NOPASSWD: /opt/app/zomboid/config/storms/caretaking.sh --status, /opt/app/zomboid/config/storms/caretaking.sh --force, /opt/app/zomboid/config/storms/storms.sh --force *, /opt/app/zomboid/config/storms/storms.sh --allow-tonight

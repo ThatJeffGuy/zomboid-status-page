@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+content-overrides/
+app/static/wubby-face.gif
+app/static/wubby-scream.mp3
+app/static/o-o-omg.mp3
+app/static/stopit-pmw.mp3
+app/static/whatthefuhuhuck.mp3
+app/static/yeahyeahok.mp3

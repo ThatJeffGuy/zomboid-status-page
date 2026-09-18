@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Admin &mdash; Zomboid Server{% endblock %}
+{% block head %}
+<script src="/static/app.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="layout-3col">
+
+  <div class="col col-left">
+    <div id="chat-panel" data-poll-url="/api/chat" data-poll-interval="7000" hidden>
+      <div id="chat-log"></div>
+    </div>
+
+    {% if status.world_content.patchnotes %}
+    <section class="card blurb">
+      <details class="collapsible collapsible-heading">
+        <summary>Server News</summary>
+        <div class="collapsible-body">
+          <div id="next-event-info" class="next-event-info" hidden>
+            <p class="next-event-line">Next Event: <strong id="next-event-name-simple"></strong> starts <span id="next-event-when"></span></p>
+            <p class="event-flavor" id="next-event-flavor-simple" hidden></p>
+          </div>
+
+          {{ status.world_content.patchnotes | safe }}
+
+          {% if status.world_content.lore %}
+          <details class="collapsible lore-details">
+            <summary>The Story So Far</summary>
+            <div class="lore-content">
+              {{ status.world_content.lore | safe }}
+            </div>
+          </details>
+          {% endif %}
+        </div>
+      </details>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <details class="collapsible collapsible-heading">
+        <summary>Site Content</summary>
+        <div class="collapsible-body">
+          <p class="hint">Edit the text shown on the public page. Saves are live &mdash; no rebuild needed.</p>
+          <p class="hint">Wrap text in <code>&gt;&gt;</code> and <code>&lt;&lt;</code> to make it collapsible &mdash; its first line becomes the clickable header (even if it has its own punctuation, e.g. <code>Wow! 1.25x for 24 hours?</code>) and everything after the next line break becomes the hidden body. You can nest another <code>&gt;&gt;...&lt;&lt;</code> inside that body to make a sub-section, only reachable once the outer one's expanded.</p>
+          <div class="content-editor-select">
+            <label for="content-editor-select">What to edit</label>
+            <select id="content-editor-select">
+              <option value="patchnotes">Server News</option>
+              <option value="lore">The Story So Far</option>
+              <option value="faq">Help / FAQ</option>
+              <option value="settings">Site title &amp; credit</option>
+            </select>
+          </div>
+
+          <div id="content-editor-markdown">
+            <p class="hint" id="content-editor-overridden" hidden>This is a live edit &mdash; it's no longer showing the bundled default.</p>
+            <div class="content-editor-field">
+              <label for="content-editor-textarea">Markdown</label>
+              <textarea id="content-editor-textarea" rows="10" maxlength="20000"></textarea>
+            </div>
+          </div>
+
+          <div id="content-editor-settings" hidden>
+            <div class="content-editor-field">
+              <label for="content-editor-title">Site title</label>
+              <input type="text" id="content-editor-title" maxlength="200">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-subtitle-text">Credit text</label>
+              <input type="text" id="content-editor-subtitle-text" maxlength="200">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-subtitle-url">Credit link URL</label>
+              <input type="text" id="content-editor-subtitle-url" maxlength="500">
+            </div>
+          </div>
+
+          <div class="button-row content-editor-actions">
+            <button type="button" id="content-editor-save">Save</button>
+            <button type="button" class="button-secondary" id="content-editor-revert">Revert to default</button>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <details class="collapsible collapsible-heading" open>
+        <summary>Administration</summary>
+        <div class="collapsible-body">
+          <p class="site-announcement" id="last-restart-info" hidden>Last rebooted <strong id="last-restart-time"></strong><span id="last-restart-reason"></span></p>
+
+          {% if next_event and not status.active_event and not next_event_is_vacation %}
+          <div class="admin-actions-group">
+            <h3>Event actions</h3>
+            <div class="button-row">
+              <button type="button" class="admin-action" data-endpoint="/api/admin/event/start-now" data-confirm="Start {{ next_event.name }} right now? This does not wait for its scheduled time ({{ next_event.start_display }}, 24hr time).">Start Event</button>
+              <button type="button" class="admin-action" data-endpoint="/api/admin/event/allow-tonight" data-confirm="Waive the cooldown so {{ next_event.name }} starts at its normal scheduled time ({{ next_event.start_display }}, 24hr time)? This will NOT start it early.">Queue Event</button>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="admin-actions-group">
+            <h3>Server actions</h3>
+            <div class="admin-nav-tools">
+              <button class="admin-action" data-endpoint="/api/admin/force-check" data-confirm="Run maintenance now? This checks for mod updates and may restart the server if any are found.">Run Maintenance</button>
+              <button class="admin-action" data-endpoint="/api/admin/save" data-confirm="Save the world now?">Save world</button>
+              <button class="admin-action danger" data-endpoint="/api/admin/reboot" data-confirm="Restart the server now? Players online will get an in-game warning first.">Reboot Server</button>
+            </div>
+          </div>
+
+          <div class="admin-actions-group">
+            <form method="post" action="/logout" class="inline-form"><button type="submit">Log out</button></form>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <p id="admin-message" class="notice" hidden></p>
+  </div>
+
+  <div class="col col-middle">
+    <div id="status-card" data-poll-url="/api/status" data-poll-interval="20000">
+      <p id="status-error" class="error" hidden></p>
+    </div>
+
+    <div id="active-event-banner" class="active-event-announcement" hidden>
+      Event Active: <strong id="active-event-banner-name"></strong><span id="active-event-banner-motd"></span>
+    </div>
+
+    <div id="next-event-banner" class="event-announcement" hidden>
+      <span class="event-announcement-part">Next Event: <strong id="next-event-banner-name"></strong></span>
+      <span class="event-announcement-part" id="next-event-banner-flavor" hidden></span>
+      <span class="event-announcement-part" id="next-event-banner-when"></span>
+    </div>
+
+    <section class="card" id="player-map-card">
+      <div class="status-row map-card-header">
+        <h3>Live Map</h3>
+        <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
+        <ul class="player-bubbles" id="players-list"></ul>
+      </div>
+
+      <p class="hint map-mobile-note">Live map isn't available on small screens &mdash; check back on a bigger one.</p>
+
+      <div id="map-view" data-poll-url="/api/map/positions" data-poll-interval="10000" data-is-admin="true">
+        <div id="map-canvas">
+          <div class="map-canvas-controls">
+            <button type="button" id="map-chat-toggle-btn" class="map-control-btn map-chat-toggle-btn" title="Show/hide chat in fullscreen">&#x1F4AC; Hide Chat</button>
+            <button type="button" id="map-fullscreen-btn" class="map-control-btn" title="Fullscreen (great for a second monitor)">&#x26F6; Fullscreen</button>
+          </div>
+          <div class="map-zoom-controls">
+            <button type="button" id="map-zoom-in-btn" class="map-zoom-btn" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" id="map-zoom-out-btn" class="map-zoom-btn" title="Zoom out" aria-label="Zoom out">&#8722;</button>
+          </div>
+          <div id="map-zoom-hint" class="map-zoom-hint" aria-hidden="true">Use <kbd>Ctrl</kbd> + scroll to zoom the map</div>
+
+          <div id="map-follow-indicator" class="map-follow-indicator" hidden>
+            Stalking <span class="map-follow-indicator-name"></span>
+            <button type="button" class="map-follow-indicator-stop" data-action="unfollow" aria-label="Stop stalking">&#x2715;</button>
+          </div>
+
+          <div id="map-action-toast" class="map-action-toast" aria-live="polite"></div>
+
+          <div id="map-context-menu" class="map-context-menu" hidden role="menu">
+            <div class="map-context-menu-header">
+              <div class="map-context-menu-name" id="map-context-menu-name"></div>
+              <div class="map-context-menu-coords" id="map-context-menu-coords"></div>
+            </div>
+            <div id="map-context-menu-main">
+              <button type="button" class="map-context-menu-item" data-action="follow">&#x1F9DF; Stalk</button>
+              <button type="button" class="map-context-menu-item" data-action="unfollow" hidden>&#x1F9DF; Stop stalking</button>
+              <div class="map-context-menu-admin" id="map-context-menu-admin" hidden>
+                <div class="map-context-menu-divider"></div>
+                <button type="button" class="map-context-menu-item" data-action="kick">Kick User</button>
+                <button type="button" class="map-context-menu-item map-context-menu-danger" data-action="ban" data-confirm="Ban {player}? This can't be undone from here.">Ban User</button>
+                <button type="button" class="map-context-menu-item" data-action="whitelist-remove">Remove WL</button>
+                <button type="button" class="map-context-menu-item" data-action="whitelist-add">Add WL</button>
+                <button type="button" class="map-context-menu-item" data-action="teleport-to">Teleport To &#9656;</button>
+              </div>
+            </div>
+            <div id="map-context-menu-teleport" hidden>
+              <button type="button" class="map-context-menu-item map-context-menu-back" data-action="teleport-back">&#9666; Back</button>
+              <div class="map-context-menu-divider"></div>
+              <div id="map-context-menu-teleport-list"></div>
+            </div>
+          </div>
+
+          <svg id="map-svg" viewBox="0 0 1400 1386" preserveAspectRatio="xMidYMid meet">
+            <image href="/static/map-overview.webp" x="0" y="0" width="1400" height="1386"></image>
+            <g id="map-offmap-zone" hidden>
+              <rect x="60" y="40" width="900" height="300" class="map-offmap-zone-rect"></rect>
+              <text x="80" y="72" class="map-offmap-zone-label">Off the map</text>
+            </g>
+            <g id="map-dots"></g>
+            <g id="map-pings"></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Zomboid Server Status{% endblock %}
+{% block content %}
+<div class="layout-3col">
+
+  <div class="col col-left">
+    <section class="card" id="connect-card" hidden>
+      <details class="collapsible collapsible-heading">
+        <summary>How to Join <span class="expand-hint">(click to expand)</span></summary>
+        <div class="collapsible-body">
+          <p class="hint">Add a server in your game client with these details:</p>
+          <div class="grid">
+            <div class="stat">
+              <div class="stat-label">Server Name</div>
+              <div class="stat-value-row">
+                <div class="stat-value" id="connect-name">Anything you like</div>
+                <button type="button" class="copy-field-btn" data-copy-target="connect-name">Copy</button>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Server IP</div>
+              <div class="stat-value-row">
+                <div class="stat-value" id="connect-ip">&mdash;</div>
+                <button type="button" class="copy-field-btn" data-copy-target="connect-ip">Copy</button>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Port</div>
+              <div class="stat-value-row">
+                <div class="stat-value" id="connect-port">&mdash;</div>
+                <button type="button" class="copy-field-btn" data-copy-target="connect-port">Copy</button>
+              </div>
+            </div>
+            <div class="stat" id="connect-password-block">
+              <div class="stat-label">Password</div>
+              <div class="stat-value-row">
+                <div class="stat-value" id="connect-password">&mdash;</div>
+                <button type="button" class="copy-field-btn" data-copy-target="connect-password">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          {% if status.world_content.faq %}
+          <div class="faq-static">
+            <p class="faq-heading">Help / FAQ</p>
+            <div class="faq-content blurb">
+              {{ status.world_content.faq | safe }}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </details>
+    </section>
+
+    <div id="chat-panel" data-poll-url="/api/chat" data-poll-interval="7000" hidden>
+      <div id="chat-log"></div>
+    </div>
+
+    {% if status.world_content.patchnotes %}
+    <section class="card blurb">
+      <details class="collapsible collapsible-heading" open>
+        <summary>Server News</summary>
+        <div class="collapsible-body">
+          <div id="next-event-info" class="next-event-info" hidden>
+            <p class="next-event-line">Next Event: <strong id="next-event-name-simple"></strong> starts <span id="next-event-when"></span></p>
+            <p class="event-flavor" id="next-event-flavor-simple" hidden></p>
+          </div>
+
+          {{ status.world_content.patchnotes | safe }}
+
+          {% if status.world_content.lore %}
+          <details class="collapsible lore-details">
+            <summary>The Story So Far</summary>
+            <div class="lore-content">
+              {{ status.world_content.lore | safe }}
+            </div>
+          </details>
+          {% endif %}
+        </div>
+      </details>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <details class="collapsible collapsible-heading">
+        <summary>Administration <span class="expand-hint">(click to expand)</span></summary>
+        <div class="collapsible-body">
+          <p class="site-announcement" id="last-restart-info" hidden>Last rebooted <strong id="last-restart-time"></strong><span id="last-restart-reason"></span></p>
+
+          <form method="post" action="/login" class="inline-form nav-login-form">
+            {% set login_error = request.query_params.get('login_error') %}
+            {% if login_error == 'badpass' %}<span class="error nav-login-error">Incorrect password.</span>
+            {% elif login_error == 'ratelimited' %}<span class="error nav-login-error">Too many attempts, try again in a few minutes.</span>
+            {% endif %}
+            <input type="password" name="password" placeholder="Admin password" autocomplete="current-password" required>
+            <button type="submit">Log in</button>
+          </form>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <div class="col col-middle">
+    <div id="status-card" data-poll-url="/api/status" data-poll-interval="20000">
+      <p id="status-error" class="error" hidden></p>
+    </div>
+
+    <div id="active-event-banner" class="active-event-announcement" hidden>
+      Event Active: <strong id="active-event-banner-name"></strong><span id="active-event-banner-motd"></span>
+    </div>
+
+    <div id="next-event-banner" class="event-announcement" hidden>
+      <span class="event-announcement-part">Next Event: <strong id="next-event-banner-name"></strong></span>
+      <span class="event-announcement-part" id="next-event-banner-flavor" hidden></span>
+      <span class="event-announcement-part" id="next-event-banner-when"></span>
+    </div>
+
+    <section class="card" id="player-map-card">
+      <div class="status-row map-card-header">
+        <h3>Live Map</h3>
+        <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
+        <ul class="player-bubbles" id="players-list"></ul>
+      </div>
+
+      <p class="hint map-mobile-note">Live map isn't available on small screens &mdash; check back on a bigger one.</p>
+
+      <div id="map-view" data-poll-url="/api/map/positions" data-poll-interval="10000" data-is-admin="{{ 'true' if is_admin else 'false' }}">
+        <div id="map-canvas">
+          <div class="map-canvas-controls">
+            <button type="button" id="map-chat-toggle-btn" class="map-control-btn map-chat-toggle-btn" title="Show/hide chat in fullscreen">&#x1F4AC; Hide Chat</button>
+            <button type="button" id="map-fullscreen-btn" class="map-control-btn" title="Fullscreen (great for a second monitor)">&#x26F6; Fullscreen</button>
+          </div>
+          <div class="map-zoom-controls">
+            <button type="button" id="map-zoom-in-btn" class="map-zoom-btn" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" id="map-zoom-out-btn" class="map-zoom-btn" title="Zoom out" aria-label="Zoom out">&#8722;</button>
+          </div>
+          <div id="map-zoom-hint" class="map-zoom-hint" aria-hidden="true">Use <kbd>Ctrl</kbd> + scroll to zoom the map</div>
+
+          <div id="map-follow-indicator" class="map-follow-indicator" hidden>
+            Stalking <span class="map-follow-indicator-name"></span>
+            <button type="button" class="map-follow-indicator-stop" data-action="unfollow" aria-label="Stop stalking">&#x2715;</button>
+          </div>
+
+          <div id="map-action-toast" class="map-action-toast" aria-live="polite"></div>
+
+          <div id="map-context-menu" class="map-context-menu" hidden role="menu">
+            <div class="map-context-menu-header">
+              <div class="map-context-menu-name" id="map-context-menu-name"></div>
+              <div class="map-context-menu-coords" id="map-context-menu-coords"></div>
+            </div>
+            <div id="map-context-menu-main">
+              <button type="button" class="map-context-menu-item" data-action="follow">&#x1F9DF; Stalk</button>
+              <button type="button" class="map-context-menu-item" data-action="unfollow" hidden>&#x1F9DF; Stop stalking</button>
+              <div class="map-context-menu-admin" id="map-context-menu-admin" hidden>
+                <div class="map-context-menu-divider"></div>
+                <button type="button" class="map-context-menu-item" data-action="kick">Kick User</button>
+                <button type="button" class="map-context-menu-item map-context-menu-danger" data-action="ban" data-confirm="Ban {player}? This can't be undone from here.">Ban User</button>
+                <button type="button" class="map-context-menu-item" data-action="whitelist-remove">Remove WL</button>
+                <button type="button" class="map-context-menu-item" data-action="whitelist-add">Add WL</button>
+                <button type="button" class="map-context-menu-item" data-action="teleport-to">Teleport To &#9656;</button>
+              </div>
+            </div>
+            <div id="map-context-menu-teleport" hidden>
+              <button type="button" class="map-context-menu-item map-context-menu-back" data-action="teleport-back">&#9666; Back</button>
+              <div class="map-context-menu-divider"></div>
+              <div id="map-context-menu-teleport-list"></div>
+            </div>
+          </div>
+
+          <svg id="map-svg" viewBox="0 0 1400 1386" preserveAspectRatio="xMidYMid meet">
+            <image href="/static/map-overview.webp" x="0" y="0" width="1400" height="1386"></image>
+            <g id="map-offmap-zone" hidden>
+              <rect x="60" y="40" width="900" height="300" class="map-offmap-zone-rect"></rect>
+              <text x="80" y="72" class="map-offmap-zone-label">Off the map</text>
+            </g>
+            <g id="map-dots"></g>
+            <g id="map-pings"></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block head %}
+<script src="/static/app.js" defer></script>
+{% endblock %}
