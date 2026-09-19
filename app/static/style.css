@@ -466,13 +466,16 @@ form label { margin-top: .75rem; }
   list-style: none;
 }
 .collapsible summary::-webkit-details-marker { display: none; }
-.collapsible summary::before {
-  content: "\25B8";
+.collapsible > summary::before {
+  content: "\276F";
   display: inline-block;
+  font-size: 1rem;
+  font-weight: 700;
   margin-right: .5rem;
-  transition: transform .15s ease;
+  transform-origin: 45% 50%;
+  transition: transform .2s ease-in-out;
 }
-.collapsible[open] summary::before { transform: rotate(90deg); }
+.collapsible[open] > summary::before { transform: rotate(90deg); }
 .collapsible summary:hover { color: var(--accent); }
 .expand-hint {
   text-transform: none;
@@ -490,7 +493,7 @@ pre + .collapsible { margin-top: 1rem; }
   border-left: 2px solid var(--border);
 }
 
-.collapsible-heading summary { font-size: 1rem; font-weight: 700; }
+.collapsible-heading > summary { font-size: 1rem; font-weight: 700; }
 
 .map-card-header {
   justify-content: space-between;
@@ -772,7 +775,7 @@ pre + .collapsible { margin-top: 1rem; }
   display: block;
   width: 100%;
   aspect-ratio: 1400 / 1386;
-  max-height: 750px;
+  max-height: 670px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;

@@ -1062,7 +1062,7 @@
         updateToggleLabel();
       } else if (panel.parentNode === view) {
         chatHomeParent.insertBefore(panel, chatHomeNext);
-        panel.hidden = false;
+        panel.hidden = true;
       }
     }
 
