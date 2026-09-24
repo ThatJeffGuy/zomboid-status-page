@@ -83,6 +83,8 @@ silently no-ops if the files aren't there.
   web app container never gets a Docker socket or root.
 - `install.sh` -- one-time host setup (creates the helper's system user,
   installs its systemd unit and sudoers rule).
+- `docker-compose.yml` -- the web app stack for one world;
+  `docker-compose.second-world.yml` layers a second world on top (optional).
 
 ## Requirements
 
@@ -179,6 +181,33 @@ Log in with your admin password at `/login`, then use the "Site Content"
 card to set your site title, credit line, and the three world-info blurbs.
 Edit `app/static/style.css`/`app/templates/base.html` directly for anything
 not covered by the admin panel (community links, colors, etc).
+
+## Running a second world (optional)
+
+One deployment can front two Project Zomboid servers. The site root becomes a
+world picker, and each world gets its own page at `/world/<slug>` (`main` for
+the first, `second` for the other). Admins rename worlds and pick colors under
+**Manage Worlds** in the admin panel.
+
+1. Give the second server its own ports and RCON port (e.g. `16263`/`16264`,
+   RCON `27016`) and its own directory (`/opt/app/zomboid-2` in the examples).
+2. Fill in the paths in `docker-compose.second-world.yml` and start the stack
+   with both files:
+
+   ```
+   docker compose -f docker-compose.yml -f docker-compose.second-world.yml up -d
+   ```
+
+   Point `SECOND_RCON_PASS_FILE` at the second server's own RCON file, and
+   `SECOND_CARETAKING_LOG` at the log your caretaking script actually writes to
+   (its `LOG=`), not the cron job's stderr file.
+3. `pz-helper` already knows both worlds. If your second server's container
+   or script paths differ from the defaults, set `PZ_SECOND_GAME_CONTAINER`,
+   `PZ_SECOND_CARETAKING_SCRIPT`, and `PZ_SECOND_EVENTS_SCRIPT` in
+   `pz-helper.service`, and adjust `helper/sudoers-pz-helper` to match.
+
+If `SECOND_RCON_PORT` isn't set, the second world is simply not wired up; a
+world added under Manage Worlds without a backend shows a "coming soon" page.
 
 ## Notes
 

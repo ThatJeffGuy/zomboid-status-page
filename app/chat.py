@@ -23,8 +23,8 @@ def _parse_ts(dd: str, mm: str, yy: str, hh: str, mi: str, ss: str) -> str:
     return dt.isoformat()
 
 
-def read_recent(limit: int = 50) -> list[dict]:
-    path = game_logs.find_current("chat")
+def read_recent(limit: int = 50, logs_dir: str | None = None) -> list[dict]:
+    path = game_logs.find_current("chat", logs_dir)
     if path is None:
         return []
     try:

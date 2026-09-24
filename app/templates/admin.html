@@ -4,10 +4,18 @@
 <script src="/static/app.js" defer></script>
 {% endblock %}
 {% block content %}
+<div class="admin-world-switcher">
+  <span class="admin-world-switcher-label">Managing:</span>
+  {% for w in worlds %}
+  {% if w.slug in wired_slugs %}
+  <a class="admin-world-switcher-link{{ ' active' if w.slug == world.slug else '' }}" href="/admin/{{ w.slug }}">{{ w.label }}</a>
+  {% endif %}
+  {% endfor %}
+</div>
 <div class="layout-3col">
 
   <div class="col col-left">
-    <div id="chat-panel" data-poll-url="/api/chat" data-poll-interval="7000" hidden>
+    <div id="chat-panel" data-poll-url="/api/{{ world.slug }}/chat" data-poll-interval="7000" hidden>
       <div id="chat-log"></div>
     </div>
 
@@ -16,11 +24,6 @@
       <details class="collapsible collapsible-heading">
         <summary>Server News</summary>
         <div class="collapsible-body">
-          <div id="next-event-info" class="next-event-info" hidden>
-            <p class="next-event-line">Next Event: <strong id="next-event-name-simple"></strong> starts <span id="next-event-when"></span></p>
-            <p class="event-flavor" id="next-event-flavor-simple" hidden></p>
-          </div>
-
           {{ status.world_content.patchnotes | safe }}
 
           {% if status.world_content.lore %}
@@ -37,64 +40,15 @@
     {% endif %}
 
     <section class="card">
-      <details class="collapsible collapsible-heading">
-        <summary>Site Content</summary>
-        <div class="collapsible-body">
-          <p class="hint">Edit the text shown on the public page. Saves are live &mdash; no rebuild needed.</p>
-          <p class="hint">Wrap text in <code>&gt;&gt;</code> and <code>&lt;&lt;</code> to make it collapsible &mdash; its first line becomes the clickable header (even if it has its own punctuation, e.g. <code>Wow! 1.25x for 24 hours?</code>) and everything after the next line break becomes the hidden body. You can nest another <code>&gt;&gt;...&lt;&lt;</code> inside that body to make a sub-section, only reachable once the outer one's expanded.</p>
-          <div class="content-editor-select">
-            <label for="content-editor-select">What to edit</label>
-            <select id="content-editor-select">
-              <option value="patchnotes">Server News</option>
-              <option value="lore">The Story So Far</option>
-              <option value="faq">Help / FAQ</option>
-              <option value="settings">Site title &amp; credit</option>
-            </select>
-          </div>
-
-          <div id="content-editor-markdown">
-            <p class="hint" id="content-editor-overridden" hidden>This is a live edit &mdash; it's no longer showing the bundled default.</p>
-            <div class="content-editor-field">
-              <label for="content-editor-textarea">Markdown</label>
-              <textarea id="content-editor-textarea" rows="10" maxlength="20000"></textarea>
-            </div>
-          </div>
-
-          <div id="content-editor-settings" hidden>
-            <div class="content-editor-field">
-              <label for="content-editor-title">Site title</label>
-              <input type="text" id="content-editor-title" maxlength="200">
-            </div>
-            <div class="content-editor-field">
-              <label for="content-editor-subtitle-text">Credit text</label>
-              <input type="text" id="content-editor-subtitle-text" maxlength="200">
-            </div>
-            <div class="content-editor-field">
-              <label for="content-editor-subtitle-url">Credit link URL</label>
-              <input type="text" id="content-editor-subtitle-url" maxlength="500">
-            </div>
-          </div>
-
-          <div class="button-row content-editor-actions">
-            <button type="button" id="content-editor-save">Save</button>
-            <button type="button" class="button-secondary" id="content-editor-revert">Revert to default</button>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <section class="card">
       <details class="collapsible collapsible-heading" open>
         <summary>Administration</summary>
         <div class="collapsible-body">
-          <p class="site-announcement" id="last-restart-info" hidden>Last rebooted <strong id="last-restart-time"></strong><span id="last-restart-reason"></span></p>
-
           {% if next_event and not status.active_event and not next_event_is_vacation %}
           <div class="admin-actions-group">
             <h3>Event actions</h3>
             <div class="button-row">
-              <button type="button" class="admin-action" data-endpoint="/api/admin/event/start-now" data-confirm="Start {{ next_event.name }} right now? This does not wait for its scheduled time ({{ next_event.start_display }}, 24hr time).">Start Event</button>
-              <button type="button" class="admin-action" data-endpoint="/api/admin/event/allow-tonight" data-confirm="Waive the cooldown so {{ next_event.name }} starts at its normal scheduled time ({{ next_event.start_display }}, 24hr time)? This will NOT start it early.">Queue Event</button>
+              <button type="button" class="admin-action" data-endpoint="/api/{{ world.slug }}/admin/event/start-now" data-confirm="Start {{ next_event.name }} right now? This does not wait for its scheduled time ({{ next_event.start_display }}, 24hr time).">Start Event</button>
+              <button type="button" class="admin-action" data-endpoint="/api/{{ world.slug }}/admin/event/allow-tonight" data-confirm="Waive the cooldown so {{ next_event.name }} starts at its normal scheduled time ({{ next_event.start_display }}, 24hr time)? This will NOT start it early.">Queue Event</button>
             </div>
           </div>
           {% endif %}
@@ -102,9 +56,9 @@
           <div class="admin-actions-group">
             <h3>Server actions</h3>
             <div class="admin-nav-tools">
-              <button class="admin-action" data-endpoint="/api/admin/force-check" data-confirm="Run maintenance now? This checks for mod updates and may restart the server if any are found.">Run Maintenance</button>
-              <button class="admin-action" data-endpoint="/api/admin/save" data-confirm="Save the world now?">Save world</button>
-              <button class="admin-action danger" data-endpoint="/api/admin/reboot" data-confirm="Restart the server now? Players online will get an in-game warning first.">Reboot Server</button>
+              <button class="admin-action" data-endpoint="/api/{{ world.slug }}/admin/force-check" data-confirm="Run maintenance now? This checks for mod updates and may restart the server if any are found.">Run Maintenance</button>
+              <button class="admin-action" data-endpoint="/api/{{ world.slug }}/admin/save" data-confirm="Save the world now?">Save world</button>
+              <button class="admin-action danger" data-endpoint="/api/{{ world.slug }}/admin/reboot" data-confirm="Restart the server now? Players online will get an in-game warning first.">Reboot Server</button>
             </div>
           </div>
 
@@ -119,30 +73,27 @@
   </div>
 
   <div class="col col-middle">
-    <div id="status-card" data-poll-url="/api/status" data-poll-interval="20000">
+    <div id="status-card" data-poll-url="/api/{{ world.slug }}/status" data-poll-interval="20000">
       <p id="status-error" class="error" hidden></p>
     </div>
 
-    <div id="active-event-banner" class="active-event-announcement" hidden>
-      Event Active: <strong id="active-event-banner-name"></strong><span id="active-event-banner-motd"></span>
-    </div>
-
-    <div id="next-event-banner" class="event-announcement" hidden>
-      <span class="event-announcement-part">Next Event: <strong id="next-event-banner-name"></strong></span>
-      <span class="event-announcement-part" id="next-event-banner-flavor" hidden></span>
-      <span class="event-announcement-part" id="next-event-banner-when"></span>
+    <div id="event-banner" class="event-announcement" hidden>
+      <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
+      <div class="event-banner-row" id="event-banner-next" hidden></div>
     </div>
 
     <section class="card" id="player-map-card">
+      <details class="collapsible collapsible-heading" id="map-collapse" open>
+      <summary>Live Map</summary>
+      <div class="collapsible-body">
       <div class="status-row map-card-header">
-        <h3>Live Map</h3>
         <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
         <ul class="player-bubbles" id="players-list"></ul>
       </div>
 
       <p class="hint map-mobile-note">Live map isn't available on small screens &mdash; check back on a bigger one.</p>
 
-      <div id="map-view" data-poll-url="/api/map/positions" data-poll-interval="10000" data-is-admin="true">
+      <div id="map-view" data-poll-url="/api/{{ world.slug }}/map/positions" data-poll-interval="10000" data-is-admin="true">
         <div id="map-canvas">
           <div class="map-canvas-controls">
             <button type="button" id="map-chat-toggle-btn" class="map-control-btn map-chat-toggle-btn" title="Show/hide chat in fullscreen">&#x1F4AC; Hide Chat</button>
@@ -196,6 +147,145 @@
           </svg>
         </div>
       </div>
+      </div>
+      </details>
+    </section>
+
+    <section class="card admin-editors">
+      <details class="collapsible collapsible-heading">
+        <summary>Site Content</summary>
+        <div class="collapsible-body">
+          <p class="hint">Edit the text shown on the public page. Saves are live &mdash; no rebuild needed.</p>
+          <p class="hint">Wrap text in <code>&gt;&gt;</code> and <code>&lt;&lt;</code> to make it collapsible &mdash; its first line becomes the clickable header (even if it has its own punctuation, e.g. <code>Wow! 1.25x for 24 hours?</code>) and everything after the next line break becomes the hidden body. You can nest another <code>&gt;&gt;...&lt;&lt;</code> inside that body to make a sub-section, only reachable once the outer one's expanded. Start it with <code>&gt;&gt;+</code> instead of <code>&gt;&gt;</code> to have it open by default.</p>
+          <p class="hint">Images: <code>![description](https://example.com/pic.png)</code>, or put the file in <code>content-overrides/media/</code> on the server and use <code>![description](/media/pic.png)</code>. Big images shrink to fit the column. Code: wrap it in <code>```</code> lines.</p>
+          <div class="content-editor-select">
+            <label for="content-editor-select">What to edit</label>
+            <select id="content-editor-select">
+              <option value="join_title">Join heading</option>
+              <option value="patchnotes">Server News</option>
+              <option value="lore">The Story So Far</option>
+              <option value="faq">Help / FAQ</option>
+              <option value="settings">Site title &amp; credit</option>
+              <option value="sections">Section display</option>
+            </select>
+          </div>
+
+          <div id="content-editor-join" hidden>
+            <div class="content-editor-field">
+              <label for="content-editor-join-title">Join heading (shown above the connect info on this world's page)</label>
+              <input type="text" id="content-editor-join-title" maxlength="200">
+            </div>
+          </div>
+
+          <div id="content-editor-markdown">
+            <p class="hint" id="content-editor-overridden" hidden>This is a live edit &mdash; it's no longer showing the bundled default.</p>
+            <div class="content-editor-field">
+              <label for="content-editor-textarea">Markdown</label>
+              <textarea id="content-editor-textarea" rows="10" maxlength="20000"></textarea>
+            </div>
+          </div>
+
+          <div id="content-editor-settings" hidden>
+            <div class="content-editor-field">
+              <label for="content-editor-title">Site title</label>
+              <input type="text" id="content-editor-title" maxlength="200">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-subtitle-text">Credit text</label>
+              <input type="text" id="content-editor-subtitle-text" maxlength="200">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-subtitle-url">Credit link URL</label>
+              <input type="text" id="content-editor-subtitle-url" maxlength="500">
+            </div>
+          </div>
+
+          <div id="content-editor-sections" hidden>
+            <p class="hint">How each section starts out on the world pages, for every visitor.</p>
+            <div class="content-editor-field">
+              <label for="content-editor-section_join">Join the server</label>
+              <select id="content-editor-section_join">
+                <option value="collapsed">Collapsed (click to expand)</option>
+                <option value="expanded">Expanded (can be collapsed)</option>
+                <option value="always">Always shown (no collapse)</option>
+              </select>
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-section_news">Server News</label>
+              <select id="content-editor-section_news">
+                <option value="collapsed">Collapsed (click to expand)</option>
+                <option value="expanded">Expanded (can be collapsed)</option>
+                <option value="always">Always shown (no collapse)</option>
+              </select>
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-section_lore">The Story So Far</label>
+              <select id="content-editor-section_lore">
+                <option value="collapsed">Collapsed (click to expand)</option>
+                <option value="expanded">Expanded (can be collapsed)</option>
+                <option value="always">Always shown (no collapse)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="button-row content-editor-actions">
+            <button type="button" id="content-editor-save">Save</button>
+            <button type="button" class="button-secondary" id="content-editor-revert">Revert to default</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="collapsible collapsible-heading">
+        <summary>Manage Worlds</summary>
+        <div class="collapsible-body">
+          <p class="hint">These control the world-picker page and the Game Links bubbles. The "Live" world is the one this dashboard actually shows data for &mdash; it can't be removed or renamed (slug), but its display name and color are still editable. For a world icon, put an image (PNG/JPG/WebP/SVG) in <code>content-overrides/icons/</code> on the server and enter its filename in the logo box; leave it blank for no icon.</p>
+
+          <div id="worlds-list" class="worlds-list"></div>
+
+          <div class="worlds-add-row">
+            <input type="text" id="worlds-add-label" placeholder="New world name" maxlength="60">
+            <select id="worlds-add-color">
+              <option value="good">Green</option>
+              <option value="accent">Blue</option>
+              <option value="purple">Purple</option>
+              <option value="warn">Orange</option>
+              <option value="bad">Red</option>
+            </select>
+            <button type="button" id="worlds-add-btn">Add World</button>
+          </div>
+
+          <div class="button-row content-editor-actions">
+            <button type="button" id="worlds-save-btn">Save Worlds</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="collapsible collapsible-heading">
+        <summary>Manage Links</summary>
+        <div class="collapsible-body">
+          <p class="hint">Add, remove, reorder, recolor, and regroup the buttons shown in the Community Links dropdown. Buttons with the same group name cluster together. For a button icon, put an image (PNG/JPG/WebP/SVG) in <code>content-overrides/icons/</code> on the server and enter its filename; leave it blank for a lettered circle.</p>
+
+          <div id="links-list" class="worlds-list"></div>
+
+          <div class="worlds-add-row">
+            <input type="text" id="links-add-label" placeholder="Button label" maxlength="60">
+            <input type="text" id="links-add-url" placeholder="https://...">
+            <select id="links-add-color">
+              <option value="good">Green</option>
+              <option value="accent">Blue</option>
+              <option value="purple">Purple</option>
+              <option value="warn">Orange</option>
+              <option value="bad">Red</option>
+            </select>
+            <input type="text" id="links-add-group" placeholder="Group name" maxlength="40">
+            <button type="button" id="links-add-btn">Add Button</button>
+          </div>
+
+          <div class="button-row content-editor-actions">
+            <button type="button" id="links-save-btn">Save Links</button>
+          </div>
+        </div>
+      </details>
     </section>
   </div>
 

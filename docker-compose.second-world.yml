@@ -1,0 +1,19 @@
+services:
+  zomboid-status:
+    volumes:
+      - /path/to/rcon-second.yaml:/run/secrets/second-rcon:ro
+      - /path/to/caretaking-second.log:/data/second-pz-caretaking.log:ro
+      - /opt/app/zomboid-2/config/Server/YourSecondServerName.ini:/run/secrets/second-server.ini:ro
+      - /opt/app/zomboid-2/config/storms:/data/second-pz-storms:ro
+      - /opt/app/zomboid-2/config/db:/data/second-pz-db:ro
+      - /opt/app/zomboid-2/config/Logs:/data/second-pz-logs:ro
+    environment:
+      - SECOND_RCON_HOST=127.0.0.1
+      - SECOND_RCON_PORT=27016
+      - SECOND_RCON_PASS_FILE=/run/secrets/second-rcon
+      - SECOND_SERVER_INI=/run/secrets/second-server.ini
+      - SECOND_EVENTS_DIR=/data/second-pz-storms
+      - SECOND_LOGS_DIR=/data/second-pz-logs
+      - SECOND_PLAYER_DB=/data/second-pz-db/YourSecondServerName.db
+      - SECOND_CARETAKING_LOG=/data/second-pz-caretaking.log
+      - SECOND_GAME_CONTAINER=zomboid-server-2

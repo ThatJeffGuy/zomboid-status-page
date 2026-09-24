@@ -15,36 +15,36 @@ START_GRACE_MIN = 25
 VACATION_EVENT = "storm-vacationday.sh"
 
 
-def _dir() -> str:
-    return os.environ.get("EVENTS_DIR", "/data/pz-storms")
+def _dir(events_dir: str | None = None) -> str:
+    return events_dir or os.environ.get("EVENTS_DIR", "/data/pz-storms")
 
 
 _OVERRIDE_FILENAME = "event-override.json"
 
 
-def _override_path() -> str:
-    override_dir = os.environ.get("CONTENT_OVERRIDE_DIR", "/data/content")
-    return os.path.join(override_dir, _OVERRIDE_FILENAME)
+def _override_path(override_dir: str | None = None) -> str:
+    base = override_dir or os.environ.get("CONTENT_OVERRIDE_DIR", "/data/content")
+    return os.path.join(base, _OVERRIDE_FILENAME)
 
 
-def mark_allow_tonight_override(script: str) -> None:
-    path = _override_path()
+def mark_allow_tonight_override(script: str, override_dir: str | None = None) -> None:
+    path = _override_path(override_dir)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump({"script": script, "set_at": int(time.time())}, f)
 
 
-def _read_override_script() -> str | None:
+def _read_override_script(override_dir: str | None = None) -> str | None:
     try:
-        with open(_override_path(), "r", errors="replace") as f:
+        with open(_override_path(override_dir), "r", errors="replace") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return None
     return data.get("script") if isinstance(data, dict) else None
 
 
-def _read_script(script_basename: str) -> str | None:
-    path = os.path.join(_dir(), script_basename)
+def _read_script(script_basename: str, events_dir: str | None = None) -> str | None:
+    path = os.path.join(_dir(events_dir), script_basename)
     try:
         with open(path, "r", errors="replace") as f:
             return f.read()
@@ -52,16 +52,16 @@ def _read_script(script_basename: str) -> str | None:
         return None
 
 
-def _display_name(script_basename: str) -> str | None:
-    content = _read_script(script_basename)
+def _display_name(script_basename: str, events_dir: str | None = None) -> str | None:
+    content = _read_script(script_basename, events_dir)
     if content is None:
         return None
     m = _EVENT_NAME_RE.search(content)
     return m.group(1) if m else None
 
 
-def _flavor_text(script_basename: str) -> str | None:
-    content = _read_script(script_basename)
+def _flavor_text(script_basename: str, events_dir: str | None = None) -> str | None:
+    content = _read_script(script_basename, events_dir)
     if content is None:
         return None
     m = _EVENT_BLURB_RE.search(content)
@@ -71,17 +71,8 @@ def _flavor_text(script_basename: str) -> str | None:
     return segments[0] if segments else None
 
 
-def _last_end_epoch() -> int:
-    path = os.path.join(_dir(), ".last_storm_end")
-    try:
-        with open(path, "r", errors="replace") as f:
-            return int(f.read().strip())
-    except (OSError, ValueError):
-        return 0
-
-
-def _last_start_date() -> str | None:
-    path = os.path.join(_dir(), ".last_storm_start_date")
+def _last_start_date(events_dir: str | None = None) -> str | None:
+    path = os.path.join(_dir(events_dir), ".last_storm_start_date")
     try:
         with open(path, "r", errors="replace") as f:
             return f.read().strip() or None
@@ -94,8 +85,8 @@ def _iso_week_id(dt: datetime) -> str:
     return f"{y}-W{w:02d}"
 
 
-def _week_days() -> tuple[str, list[str]] | None:
-    path = os.path.join(_dir(), ".storm_days")
+def _week_days(events_dir: str | None = None) -> tuple[str, list[str]] | None:
+    path = os.path.join(_dir(events_dir), ".storm_days")
     try:
         with open(path, "r", errors="replace") as f:
             parts = f.read().split()
@@ -131,12 +122,12 @@ def _simple_start_display(start_epoch: int) -> str:
     return f"{day_part} at {time_part}"
 
 
-def _next_start_epoch(now_epoch: int) -> int:
+def _next_start_epoch(now_epoch: int, events_dir: str | None = None) -> int:
     now = datetime.fromtimestamp(now_epoch, tz=EVENT_TZ)
     today_str = now.strftime("%Y-%m-%d")
-    last_start = _last_start_date()
+    last_start = _last_start_date(events_dir)
 
-    wk = _week_days()
+    wk = _week_days(events_dir)
     if wk is not None:
         week_id, days = wk
         if week_id == _iso_week_id(now):
@@ -164,8 +155,8 @@ def _next_start_epoch(now_epoch: int) -> int:
     return int(candidate.timestamp())
 
 
-def read_active() -> dict | None:
-    path = os.path.join(_dir(), ".active_storm")
+def read_active(events_dir: str | None = None) -> dict | None:
+    path = os.path.join(_dir(events_dir), ".active_storm")
     if not os.path.exists(path):
         return None
     try:
@@ -182,14 +173,14 @@ def read_active() -> dict | None:
         return None
 
     return {
-        "name": _display_name(script) or script,
+        "name": _display_name(script, events_dir) or script,
         "seconds_left": max(0, end_epoch - int(time.time())),
-        "flavor": _flavor_text(script),
+        "flavor": _flavor_text(script, events_dir),
     }
 
 
-def read_next() -> dict | None:
-    path = os.path.join(_dir(), ".storm_queue")
+def read_next(events_dir: str | None = None, override_dir: str | None = None) -> dict | None:
+    path = os.path.join(_dir(events_dir), ".storm_queue")
     if not os.path.exists(path):
         return None
     try:
@@ -201,15 +192,15 @@ def read_next() -> dict | None:
         return None
 
     script = queue[0]
-    name = _display_name(script)
-    start_epoch = _next_start_epoch(int(time.time()))
+    name = _display_name(script, events_dir)
+    start_epoch = _next_start_epoch(int(time.time()), events_dir)
     start_display = datetime.fromtimestamp(start_epoch, tz=EVENT_TZ).strftime("%b %-d, %Y %H:%M %Z")
     return {
         "name": name or f"{script} (script missing)",
-        "flavor": _flavor_text(script),
+        "flavor": _flavor_text(script, events_dir),
         "script": script,
         "start_epoch": start_epoch,
         "start_display": start_display,
         "start_display_simple": _simple_start_display(start_epoch),
-        "overridden_early": _read_override_script() == script,
+        "overridden_early": _read_override_script(override_dir) == script,
     }

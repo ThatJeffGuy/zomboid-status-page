@@ -10,19 +10,28 @@ _KEYS = {
     "patchnotes": "patchnotes.md",
     "lore": "lore.md",
     "faq": "faq.md",
+    "join_title": "join-title.md",
 }
 
+_PLAIN_KEYS = {"join_title"}
 
-def _override_dir() -> str:
-    return os.environ.get("CONTENT_OVERRIDE_DIR", "/data/content")
+
+def media_dir() -> str:
+    """Images for markdown content, served at /media/ (no image rebuild needed)."""
+    return os.path.join(os.environ.get("CONTENT_OVERRIDE_DIR", "/data/content"), "media")
+
+
+def _override_dir(subdir: str | None = None) -> str:
+    base = os.environ.get("CONTENT_OVERRIDE_DIR", "/data/content")
+    return os.path.join(base, subdir) if subdir else base
 
 
 def _default_path(key: str) -> str:
     return os.path.join(_CONTENT_DIR, _KEYS[key])
 
 
-def _override_path(key: str) -> str:
-    return os.path.join(_override_dir(), _KEYS[key])
+def _override_path(key: str, subdir: str | None = None) -> str:
+    return os.path.join(_override_dir(subdir), _KEYS[key])
 
 
 def _read(path: str) -> str:
@@ -33,32 +42,32 @@ def _read(path: str) -> str:
         return ""
 
 
-def _active_path(key: str) -> str:
-    override_path = _override_path(key)
+def _active_path(key: str, subdir: str | None = None) -> str:
+    override_path = _override_path(key, subdir)
     return override_path if os.path.exists(override_path) else _default_path(key)
 
 
-def get_raw(key: str) -> dict:
+def get_raw(key: str, subdir: str | None = None) -> dict:
     if key not in _KEYS:
         raise KeyError(key)
-    overridden = os.path.exists(_override_path(key))
-    path = _override_path(key) if overridden else _default_path(key)
+    overridden = os.path.exists(_override_path(key, subdir))
+    path = _override_path(key, subdir) if overridden else _default_path(key)
     return {"text": _read(path), "overridden": overridden}
 
 
-def save_raw(key: str, text: str) -> None:
+def save_raw(key: str, text: str, subdir: str | None = None) -> None:
     if key not in _KEYS:
         raise KeyError(key)
-    os.makedirs(_override_dir(), exist_ok=True)
-    with open(_override_path(key), "w") as f:
+    os.makedirs(_override_dir(subdir), exist_ok=True)
+    with open(_override_path(key, subdir), "w") as f:
         f.write(text)
 
 
-def revert(key: str) -> None:
+def revert(key: str, subdir: str | None = None) -> None:
     if key not in _KEYS:
         raise KeyError(key)
     try:
-        os.remove(_override_path(key))
+        os.remove(_override_path(key, subdir))
     except OSError:
         pass
 
@@ -114,6 +123,9 @@ def _render_segments(text: str, nested: bool = False) -> str:
 
 def _render_collapsible(raw: str, nested: bool = False) -> str:
     content = raw.strip()
+    start_open = content.startswith("+")
+    if start_open:
+        content = content[1:].lstrip(" \t")
     if not content:
         return ""
     header, _, body = content.partition("\n")
@@ -121,20 +133,26 @@ def _render_collapsible(raw: str, nested: bool = False) -> str:
     body_html = _render_segments(body.strip(), nested=True) if body.strip() else ""
     css_class = "collapsible collapsible-nested" if nested else "collapsible"
     return (
-        f'<details class="{css_class}">'
+        f'<details class="{css_class}"{" open" if start_open else ""}>'
         f"<summary>{header_html}</summary>"
         f'<div class="collapsible-body">{body_html}</div>'
         "</details>"
     )
 
 
-def _render(key: str) -> str:
-    text = _read(_active_path(key)).strip()
+def _render(key: str, subdir: str | None = None) -> str:
+    text = _read(_active_path(key, subdir)).strip()
     if not text:
         return ""
     html = _render_segments(text)
     return html.replace('<a href="http', '<a target="_blank" rel="noopener" href="http')
 
 
-def get_world_content() -> dict:
-    return {key: _render(key) for key in _KEYS}
+def get_world_content(subdir: str | None = None) -> dict:
+    return {key: _render(key, subdir) for key in _KEYS if key not in _PLAIN_KEYS}
+
+
+def get_plain(key: str, subdir: str | None = None) -> str:
+    if key not in _PLAIN_KEYS:
+        raise KeyError(key)
+    return _read(_active_path(key, subdir)).strip()

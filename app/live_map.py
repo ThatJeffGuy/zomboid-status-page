@@ -46,10 +46,10 @@ def _in_world_bounds(x: int, y: int) -> bool:
     return _WORLD_X_MIN <= x <= _WORLD_X_MAX and _WORLD_Y_MIN <= y <= _WORLD_Y_MAX
 
 
-def read_positions(online_names: set[str]) -> dict:
+def read_positions(online_names: set[str], logs_dir: str | None = None) -> dict:
     latest: dict[str, tuple[int, int, float]] = {}
 
-    path = game_logs.find_current("cmd")
+    path = game_logs.find_current("cmd", logs_dir)
     if path is not None:
         lines = _tail_lines(path, _TAIL_BYTES)
 

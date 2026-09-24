@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ world.label }} — Coming Soon{% endblock %}
+{% block content %}
+<section class="card narrow world-coming-soon">
+  {% if world.image %}
+  <img class="world-coming-soon-icon world-coming-soon-img" src="/icons/{{ world.image }}" alt="">
+  {% else %}
+  <svg class="world-coming-soon-icon" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--{{ world.color }})"/><text x="12" y="17" text-anchor="middle" font-size="13" font-weight="700" fill="#0a1420">{{ world.label[0]|upper }}</text></svg>
+  {% endif %}
+  <h1>{{ world.label }}</h1>
+  <p class="hint">This world's live map, status, and patch notes aren't wired up yet — check back soon.</p>
+  <a class="footer-button" href="/">&larr; Back to world select</a>
+</section>
+{% endblock %}

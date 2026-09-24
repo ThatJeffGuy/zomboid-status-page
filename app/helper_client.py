@@ -45,31 +45,31 @@ async def _call(op: str, timeout: float = 15.0, **fields) -> dict:
     return response
 
 
-async def docker_state() -> str:
-    resp = await _call("DOCKER_STATE")
+async def docker_state(world: str = "main") -> str:
+    resp = await _call("DOCKER_STATE", world=world)
     return resp.get("data", "")
 
 
-async def logs_tail() -> str:
-    resp = await _call("LOGS_TAIL", timeout=30.0)
+async def logs_tail(world: str = "main") -> str:
+    resp = await _call("LOGS_TAIL", timeout=30.0, world=world)
     return resp.get("data", "")
 
 
-async def caretaking_status() -> str:
-    resp = await _call("CARETAKING_STATUS")
+async def caretaking_status(world: str = "main") -> str:
+    resp = await _call("CARETAKING_STATUS", world=world)
     return resp.get("data", "")
 
 
-async def caretaking_force() -> str:
-    resp = await _call("CARETAKING_FORCE")
+async def caretaking_force(world: str = "main") -> str:
+    resp = await _call("CARETAKING_FORCE", world=world)
     return resp.get("data", "")
 
 
-async def event_force(script: str) -> str:
-    resp = await _call("EVENT_FORCE", script=script)
+async def event_force(script: str, world: str = "main") -> str:
+    resp = await _call("EVENT_FORCE", script=script, world=world)
     return resp.get("data", "")
 
 
-async def event_allow_tonight() -> str:
-    resp = await _call("EVENT_ALLOW_TONIGHT")
+async def event_allow_tonight(world: str = "main") -> str:
+    resp = await _call("EVENT_ALLOW_TONIGHT", world=world)
     return resp.get("data", "")

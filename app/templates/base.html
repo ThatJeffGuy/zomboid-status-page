@@ -9,30 +9,81 @@
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body data-world-slug="{{ world.slug if world else '' }}">
   <header class="topbar">
     <div class="topbar-grid">
       <div class="brand-block">
         <a class="brand" href="/">{{ site_settings.brand_title }}</a>
         <a class="brand-subtitle" href="{{ site_settings.brand_subtitle_url }}" target="_blank" rel="noopener">{{ site_settings.brand_subtitle_text }}</a>
       </div>
-      <details class="collapsible collapsible-heading topbar-actions">
-        <summary>All the links</summary>
-        <div class="topbar-links">
-          <div class="link-group link-group-green">
-            <div class="link-group-buttons">
-              <a class="footer-button" href="https://discord.gg/YOUR_INVITE" target="_blank" rel="noopener">Discord</a>
-            </div>
-            <p class="link-group-label">Community</p>
-          </div>
-          <div class="link-group link-group-purple">
-            <div class="link-group-buttons">
-              <a class="footer-button" href="https://store.steampowered.com/app/108600/Project_Zomboid/" target="_blank" rel="noopener">Buy Zomboid</a>
-            </div>
-            <p class="link-group-label">Project Zomboid</p>
+      <div class="topbar-center">
+        <div class="topbar-group topbar-group-worlds">
+          <p class="topbar-group-label">Select Your Zomboid World</p>
+          <div class="topbar-group-buttons">
+            {% for w in worlds %}
+            <a class="footer-button world-button" href="/world/{{ w.slug }}">
+              {% if w.image %}
+              <img class="footer-button-icon world-icon-img" src="/icons/{{ w.image }}" alt="">
+              {% endif %}
+              {{ w.label }}
+            </a>
+            {% endfor %}
           </div>
         </div>
-      </details>
+        <div class="topbar-group topbar-group-menus">
+          <p class="topbar-group-label">Navigation</p>
+          <div class="topbar-group-buttons">
+            {% set login_error = request.query_params.get('login_error') %}
+            <details class="collapsible topbar-actions"{% if login_error %} open{% endif %}>
+              <summary class="topbar-action-btn topbar-action-btn-community">
+                <svg class="topbar-action-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H9l-3 3v-3H4V4Z"/><path d="M9 8v4M13 8v4"/></svg>
+                Community Links
+              </summary>
+              <div class="topbar-links topbar-links-stack">
+                {% for grp in community_links %}
+                <div class="link-group">
+                  <p class="link-group-label">{{ grp.group }}</p>
+                  <div class="link-group-buttons-stack">
+                    {% for item in grp.links %}
+                    <a class="footer-button" href="{{ item.url }}" target="_blank" rel="noopener">
+                      {% if item.icon %}
+                      <img class="footer-button-icon link-icon-img" src="/icons/{{ item.icon }}" alt="">
+                      {% else %}
+                      <svg class="footer-button-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--{{ item.color }})"/><text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="#0a1420">{{ item.label[0]|upper }}</text></svg>
+                      {% endif %}
+                      {{ item.label }}
+                    </a>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+                <div class="link-group">
+                  <div class="link-group-buttons-stack">
+                    {% if is_admin %}
+                    <a class="footer-button nav-admin-item" href="/admin">
+                      Admin
+                    </a>
+                    {% else %}
+                    <details class="nav-admin-login"{% if login_error %} open{% endif %}>
+                      <summary class="footer-button nav-admin-item">
+                        Admin
+                      </summary>
+                      <form method="post" action="/login" class="inline-form nav-login-form">
+                        {% if login_error == 'badpass' %}<span class="error nav-login-error">Incorrect password.</span>
+                        {% elif login_error == 'ratelimited' %}<span class="error nav-login-error">Too many attempts, try again in a few minutes.</span>
+                        {% endif %}
+                        <input type="password" name="password" placeholder="Admin password" autocomplete="current-password" required>
+                        <button type="submit">Log in</button>
+                      </form>
+                    </details>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
   <main>

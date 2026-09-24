@@ -6,8 +6,8 @@ _PORT_RE = re.compile(r"^DefaultPort=(\d+)$", re.MULTILINE)
 _PASSWORD_RE = re.compile(r"^Password=(.*)$", re.MULTILINE)
 
 
-def read_server_info() -> dict:
-    path = os.environ.get("SERVER_INI", "/run/secrets/server.ini")
+def read_server_info(ini_path: str | None = None) -> dict:
+    path = ini_path or os.environ.get("SERVER_INI", "/run/secrets/server.ini")
     info = {"available": False, "name": None, "port": None, "password": ""}
 
     if not os.path.exists(path):

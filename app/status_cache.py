@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 
 from app import content_store, events, helper_client, player_db, rcon, schedule, server_info
+from app.world_backends import WorldBackend
 
 log = logging.getLogger("zomboid-status")
 
@@ -54,8 +55,10 @@ class Status:
     next_check_at: datetime | None = None
     updated_at: datetime | None = None
     error: str | None = None
+    offline_reason: str | None = None
     server_info: dict = field(default_factory=dict)
     world_content: dict = field(default_factory=dict)
+    join_title: str = "Join the server"
     active_event: dict | None = None
     next_event_name: str | None = None
     next_event_flavor: str | None = None
@@ -125,7 +128,8 @@ def _parse_caretaking_log(path: str) -> tuple[str, datetime | None, datetime | N
 
 
 class StatusCache:
-    def __init__(self):
+    def __init__(self, backend: WorldBackend):
+        self._backend = backend
         self._status = Status()
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
@@ -138,20 +142,22 @@ class StatusCache:
         await self._refresh_once()
 
     async def _refresh_once(self) -> None:
-        rcon_client = rcon.RconClient.from_env()
-        caretaking_log = os.environ.get("CARETAKING_LOG", "/data/pz-caretaking.log")
+        backend = self._backend
+        rcon_client = rcon.RconClient(backend.rcon_host, backend.rcon_port, backend.rcon_pass_file)
 
         new_status = Status(updated_at=datetime.now())
         new_status.next_check_at = schedule.next_check_time(datetime.now())
 
         mod_state, last_check_at, log_restart_at, log_restart_reason = await asyncio.to_thread(
-            _parse_caretaking_log, caretaking_log
+            _parse_caretaking_log, backend.caretaking_log
         )
         new_status.mod_state = mod_state
         new_status.last_check_at = last_check_at
 
         try:
-            docker_running, container_started_at = _parse_docker_state(await helper_client.docker_state())
+            docker_running, container_started_at = _parse_docker_state(
+                await helper_client.docker_state(world=backend.slug)
+            )
         except helper_client.HelperError:
             docker_running, container_started_at = None, None
 
@@ -168,16 +174,18 @@ class StatusCache:
         if new_status.last_restart_reason is None and new_status.last_restart_at is not None:
             new_status.last_restart_reason = _nightly_maintenance_reason(new_status.last_restart_at)
 
-        new_status.server_info = await asyncio.to_thread(server_info.read_server_info)
-        new_status.world_content = await asyncio.to_thread(content_store.get_world_content)
-        new_status.active_event = await asyncio.to_thread(events.read_active)
-        next_event = await asyncio.to_thread(events.read_next)
+        new_status.server_info = await asyncio.to_thread(server_info.read_server_info, backend.server_ini)
+        new_status.world_content = await asyncio.to_thread(content_store.get_world_content, backend.content_subdir)
+        join_title = await asyncio.to_thread(content_store.get_plain, "join_title", backend.content_subdir)
+        new_status.join_title = join_title or "Join the server"
+        new_status.active_event = await asyncio.to_thread(events.read_active, backend.events_dir)
+        next_event = await asyncio.to_thread(events.read_next, backend.events_dir)
         new_status.next_event_name = next_event["name"] if next_event else None
         new_status.next_event_flavor = next_event["flavor"] if next_event else None
         new_status.next_event_start_display = next_event["start_display"] if next_event else None
         new_status.next_event_start_display_simple = next_event["start_display_simple"] if next_event else None
         new_status.next_event_overridden_early = bool(next_event and next_event["overridden_early"])
-        new_status.total_players = await asyncio.to_thread(player_db.total_players)
+        new_status.total_players = await asyncio.to_thread(player_db.total_players, backend.player_db)
 
         try:
             players_out = await asyncio.to_thread(rcon_client.run, "players")
@@ -187,11 +195,12 @@ class StatusCache:
             new_status.player_names = rcon.parse_player_names(players_out)
         except rcon.RconError as e:
             new_status.rcon_reachable = False
-            new_status.online = bool(docker_running)
-            if not new_status.online:
-                new_status.error = None
+            new_status.online = False
+            new_status.error = None
+            if docker_running:
+                new_status.offline_reason = f"container is up but hasn't responded yet -- probably still starting up ({e})"
             else:
-                new_status.error = f"container is up but RCON is not answering: {e}"
+                new_status.offline_reason = None
 
         async with self._lock:
             self._status = new_status
@@ -201,7 +210,7 @@ class StatusCache:
             try:
                 await self._refresh_once()
             except Exception as e:
-                log.exception("status refresh failed: %s", e)
+                log.exception("status refresh failed for %s: %s", self._backend.slug, e)
             await asyncio.sleep(REFRESH_INTERVAL_SECONDS)
 
     def start(self) -> None:
@@ -212,6 +221,3 @@ class StatusCache:
         if self._task is not None:
             self._task.cancel()
             self._task = None
-
-
-cache = StatusCache()

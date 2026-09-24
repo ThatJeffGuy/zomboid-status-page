@@ -5,15 +5,15 @@
 
   <div class="col col-left">
     <section class="card" id="connect-card" hidden>
-      <details class="collapsible collapsible-heading">
-        <summary>How to Join <span class="expand-hint">(click to expand)</span></summary>
+      <details class="collapsible collapsible-heading{% if site_settings.section_join == 'always' %} collapsible-always{% endif %}"{% if site_settings.section_join in ('expanded', 'always') %} open{% endif %}>
+        <summary{% if site_settings.section_join == 'always' %} tabindex="-1"{% endif %}>{{ status.join_title }} <span class="expand-hint">(click to expand)</span></summary>
         <div class="collapsible-body">
           <p class="hint">Add a server in your game client with these details:</p>
           <div class="grid">
             <div class="stat">
               <div class="stat-label">Server Name</div>
               <div class="stat-value-row">
-                <div class="stat-value" id="connect-name">Anything you like</div>
+                <div class="stat-value" id="connect-name">{{ world.label }}</div>
                 <button type="button" class="copy-field-btn" data-copy-target="connect-name">Copy</button>
               </div>
             </div>
@@ -52,25 +52,20 @@
       </details>
     </section>
 
-    <div id="chat-panel" data-poll-url="/api/chat" data-poll-interval="7000" hidden>
+    <div id="chat-panel" data-poll-url="/api/{{ world.slug }}/chat" data-poll-interval="7000" hidden>
       <div id="chat-log"></div>
     </div>
 
     {% if status.world_content.patchnotes %}
     <section class="card blurb">
-      <details class="collapsible collapsible-heading" open>
-        <summary>Server News</summary>
+      <details class="collapsible collapsible-heading{% if site_settings.section_news == 'always' %} collapsible-always{% endif %}"{% if site_settings.section_news in ('expanded', 'always') %} open{% endif %}>
+        <summary{% if site_settings.section_news == 'always' %} tabindex="-1"{% endif %}>Server News</summary>
         <div class="collapsible-body">
-          <div id="next-event-info" class="next-event-info" hidden>
-            <p class="next-event-line">Next Event: <strong id="next-event-name-simple"></strong> starts <span id="next-event-when"></span></p>
-            <p class="event-flavor" id="next-event-flavor-simple" hidden></p>
-          </div>
-
           {{ status.world_content.patchnotes | safe }}
 
           {% if status.world_content.lore %}
-          <details class="collapsible lore-details">
-            <summary>The Story So Far</summary>
+          <details class="collapsible lore-details{% if site_settings.section_lore == 'always' %} collapsible-always{% endif %}"{% if site_settings.section_lore in ('expanded', 'always') %} open{% endif %}>
+            <summary{% if site_settings.section_lore == 'always' %} tabindex="-1"{% endif %}>The Story So Far</summary>
             <div class="lore-content">
               {{ status.world_content.lore | safe }}
             </div>
@@ -81,50 +76,38 @@
     </section>
     {% endif %}
 
+    {% if is_admin %}
     <section class="card">
       <details class="collapsible collapsible-heading">
         <summary>Administration</summary>
         <div class="collapsible-body">
-          <p class="site-announcement" id="last-restart-info" hidden>Last rebooted <strong id="last-restart-time"></strong><span id="last-restart-reason"></span></p>
-
-          <form method="post" action="/login" class="inline-form nav-login-form">
-            {% set login_error = request.query_params.get('login_error') %}
-            {% if login_error == 'badpass' %}<span class="error nav-login-error">Incorrect password.</span>
-            {% elif login_error == 'ratelimited' %}<span class="error nav-login-error">Too many attempts, try again in a few minutes.</span>
-            {% endif %}
-            <input type="password" name="password" placeholder="Admin password" autocomplete="current-password" required>
-            <button type="submit">Log in</button>
-          </form>
+          <p class="hint">You're logged in as admin.</p>
+          <a class="footer-button" href="/admin/{{ world.slug }}">Go to Admin Panel</a>
         </div>
       </details>
     </section>
+    {% endif %}
   </div>
 
   <div class="col col-middle">
-    <div id="status-card" data-poll-url="/api/status" data-poll-interval="20000">
+    <div id="status-card" data-poll-url="/api/{{ world.slug }}/status" data-poll-interval="20000">
       <p id="status-error" class="error" hidden></p>
     </div>
 
-    <div id="active-event-banner" class="active-event-announcement" hidden>
-      Event Active: <strong id="active-event-banner-name"></strong><span id="active-event-banner-motd"></span>
-    </div>
-
-    <div id="next-event-banner" class="event-announcement" hidden>
-      <span class="event-announcement-part">Next Event: <strong id="next-event-banner-name"></strong></span>
-      <span class="event-announcement-part" id="next-event-banner-flavor" hidden></span>
-      <span class="event-announcement-part" id="next-event-banner-when"></span>
+    <div id="event-banner" class="event-announcement" hidden>
+      <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
+      <div class="event-banner-row" id="event-banner-next" hidden></div>
     </div>
 
     <section class="card" id="player-map-card">
       <div class="status-row map-card-header">
-        <h3>Live Map</h3>
         <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
         <ul class="player-bubbles" id="players-list"></ul>
       </div>
 
       <p class="hint map-mobile-note">Live map isn't available on small screens &mdash; check back on a bigger one.</p>
 
-      <div id="map-view" data-poll-url="/api/map/positions" data-poll-interval="10000" data-is-admin="{{ 'true' if is_admin else 'false' }}">
+      <div id="map-view" data-poll-url="/api/{{ world.slug }}/map/positions" data-poll-interval="10000" data-is-admin="{{ 'true' if is_admin else 'false' }}">
         <div id="map-canvas">
           <div class="map-canvas-controls">
             <button type="button" id="map-chat-toggle-btn" class="map-control-btn map-chat-toggle-btn" title="Show/hide chat in fullscreen">&#x1F4AC; Hide Chat</button>

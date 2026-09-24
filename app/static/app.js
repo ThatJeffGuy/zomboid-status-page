@@ -67,28 +67,57 @@
       }
     }
 
-    var activeBanner = document.getElementById("active-event-banner");
-    if (activeBanner) {
-      var activeBannerNameEl = document.getElementById("active-event-banner-name");
-      var activeBannerMotdEl = document.getElementById("active-event-banner-motd");
-      if (activeEvent) {
-        if (activeBannerNameEl) activeBannerNameEl.textContent = activeEvent.name;
-        if (activeBannerMotdEl) activeBannerMotdEl.textContent = activeEvent.flavor ? ": " + activeEvent.flavor : "";
-        activeBanner.hidden = false;
-      } else {
-        activeBanner.hidden = true;
-      }
+    var eventBanner = document.getElementById("event-banner");
+    if (eventBanner) {
+      fillEventBannerRow(document.getElementById("event-banner-active"), "Event Active: ",
+        activeEvent && activeEvent.name,
+        [activeEvent && activeEvent.flavor, activeEvent && activeEvent.seconds_left ? "ends in " + fmtDuration(activeEvent.seconds_left) : null]);
+      fillEventBannerRow(document.getElementById("event-banner-next"), "Next Event: ",
+        nextEventName,
+        [nextEventFlavor, nextEventStartDisplaySimple || nextEventStartDisplay]);
+      eventBanner.classList.toggle("event-banner-is-active", !!activeEvent);
+      eventBanner.hidden = !activeEvent && !nextEventName;
     }
 
     populateNextEventDisplay("next-event-info", "next-event-name-simple", "next-event-when", "next-event-flavor-simple", nextEventName, nextEventFlavor, nextEventStartDisplay, nextEventStartDisplaySimple);
-    populateNextEventDisplay("next-event-banner", "next-event-banner-name", "next-event-banner-when", "next-event-banner-flavor", nextEventName, nextEventFlavor, nextEventStartDisplay, nextEventStartDisplaySimple);
   }
 
-  var PLAYER_ACTION_ENDPOINTS = {
-    "kick": "/api/admin/kick",
-    "ban": "/api/admin/ban",
-    "whitelist-remove": "/api/admin/whitelist/remove",
-    "whitelist-add": "/api/admin/whitelist/add",
+  function fillEventBannerRow(row, label, name, extras) {
+    if (!row) return;
+    row.textContent = "";
+    if (!name) {
+      row.hidden = true;
+      return;
+    }
+    var first = document.createElement("span");
+    first.className = "event-announcement-part";
+    first.appendChild(document.createTextNode(label));
+    var strong = document.createElement("strong");
+    strong.textContent = name;
+    first.appendChild(strong);
+    row.appendChild(first);
+    extras.forEach(function (text) {
+      if (!text) return;
+      var part = document.createElement("span");
+      part.className = "event-announcement-part";
+      part.textContent = text;
+      row.appendChild(part);
+    });
+    row.hidden = false;
+  }
+
+  function fmtDuration(seconds) {
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return h + "h " + m + "m";
+    return m > 0 ? m + "m" : "under a minute";
+  }
+
+  var PLAYER_ACTION_PATHS = {
+    "kick": "kick",
+    "ban": "ban",
+    "whitelist-remove": "whitelist/remove",
+    "whitelist-add": "whitelist/add",
   };
   var PLAYER_ACTION_LABELS = {
     "kick": "Kick User",
@@ -104,20 +133,27 @@
 
     list.innerHTML = "";
 
-    function addBubble(className, text) {
+    function addBubble(className, text, title) {
       var li = document.createElement("li");
       var span = document.createElement("span");
       span.className = className;
       span.textContent = text;
+      if (title) span.title = title;
       li.appendChild(span);
       list.appendChild(li);
       return li;
     }
 
+    function rebootTooltip() {
+      if (!s.last_restart_at) return "";
+      var text = "Last rebooted " + fmtTime(s.last_restart_at);
+      return s.last_restart_reason ? text + " — " + s.last_restart_reason + "." : text + ".";
+    }
+
     if (!s.online) {
-      addBubble("badge offline", "Offline");
-    } else if (names.length > 0) {
-      addBubble("badge online", "Online");
+      addBubble("badge offline", "Server Offline: Live Map Not Available" + (s.offline_reason ? " (starting up)" : ""), s.offline_reason);
+    } else {
+      addBubble("badge online", "Server Online: Live Map", rebootTooltip());
     }
 
     names.forEach(function (name) {
@@ -135,19 +171,6 @@
       var label = s.total_players + " total player" + (s.total_players === 1 ? "" : "s");
       addBubble("badge total-players-badge", label);
     }
-
-    var restartInfo = document.getElementById("last-restart-info");
-    var restartTimeEl = document.getElementById("last-restart-time");
-    var restartReasonEl = document.getElementById("last-restart-reason");
-    if (restartInfo && restartTimeEl && restartReasonEl) {
-      if (s.last_restart_at) {
-        restartTimeEl.textContent = fmtTime(s.last_restart_at);
-        restartReasonEl.textContent = s.last_restart_reason ? " — " + s.last_restart_reason + "." : ".";
-        restartInfo.hidden = false;
-      } else {
-        restartInfo.hidden = true;
-      }
-    }
   }
 
   function renderStatus(s) {
@@ -164,6 +187,8 @@
     }
 
     renderConnect(s.server_info);
+    var connectName = document.getElementById("connect-name");
+    if (connectName && s.world_label) connectName.textContent = s.world_label;
     renderEvent(s.active_event, s.next_event_name, s.next_event_flavor, s.next_event_start_display, s.next_event_start_display_simple, s.next_event_overridden_early);
   }
 
@@ -322,7 +347,6 @@
   var EASTER_EGG_SOUNDS = [
     "/static/wubby-scream.mp3",
     "/static/o-o-omg.mp3",
-    "/static/stopit-pmw.mp3",
     "/static/whatthefuhuhuck.mp3",
     "/static/yeahyeahok.mp3",
   ];
@@ -693,14 +717,15 @@
       if (action === "teleport-target") {
         var target = btn.dataset.targetPlayer;
         closeMenu();
-        postJson("/api/admin/teleport", { username: player, to_username: target })
+        postJson(adminEndpoint("teleport"), { username: player, to_username: target })
           .then(function (data) { showMapActionToast(data.message || ("Teleported " + player + " to " + target + "."), false); })
           .catch(function (e) { showMapActionToast("Teleport failed: " + e.message, true); });
         return;
       }
 
-      var endpoint = PLAYER_ACTION_ENDPOINTS[action];
-      if (!endpoint) return;
+      var actionPath = PLAYER_ACTION_PATHS[action];
+      if (!actionPath) return;
+      var endpoint = adminEndpoint(actionPath);
       var label = PLAYER_ACTION_LABELS[action] || action;
       var confirmMsg = btn.dataset.confirm ? btn.dataset.confirm.replace("{player}", player) : null;
       closeMenu();
@@ -989,8 +1014,10 @@
 
     var desktop = window.matchMedia("(min-width: 901px)");
 
+    var mapCollapse = document.getElementById("map-collapse");
+
     function sync() {
-      if (!desktop.matches) {
+      if (!desktop.matches || (mapCollapse && !mapCollapse.open)) {
         left.style.maxHeight = "";
         left.style.overflowY = "";
         return;
@@ -1002,6 +1029,28 @@
 
     new ResizeObserver(sync).observe(middle);
     sync();
+  }
+
+  function wireAlwaysOpenSections() {
+    document.querySelectorAll("details.collapsible-always").forEach(function (d) {
+      d.addEventListener("toggle", function () {
+        if (!d.open) d.open = true;
+      });
+    });
+  }
+
+  function wireMapCollapse() {
+    var details = document.getElementById("map-collapse");
+    if (!details) return;
+    var KEY = "admin-map-collapsed";
+    try {
+      if (localStorage.getItem(KEY) === "1") details.open = false;
+    } catch (e) { }
+    details.addEventListener("toggle", function () {
+      try {
+        localStorage.setItem(KEY, details.open ? "0" : "1");
+      } catch (e) { }
+    });
   }
 
   function wireMapFullscreen() {
@@ -1075,12 +1124,25 @@
     return meta ? meta.content : "";
   }
 
+  function worldSlug() {
+    return document.body.dataset.worldSlug || "";
+  }
+
+  function adminEndpoint(path) {
+    return "/api/" + worldSlug() + "/admin/" + path;
+  }
+
+  var messageTimer = null;
+
   function showMessage(text, isError) {
     var el = document.getElementById("admin-message");
     if (!el) return;
     el.textContent = text;
-    el.className = isError ? "error" : "notice";
+    el.className = "admin-toast " + (isError ? "error" : "notice");
     el.hidden = false;
+    el.onclick = function () { el.hidden = true; };
+    clearTimeout(messageTimer);
+    if (!isError) messageTimer = setTimeout(function () { el.hidden = true; }, 5000);
   }
 
   function postJson(endpoint, payload) {
@@ -1154,21 +1216,40 @@
 
     var mdBlock = document.getElementById("content-editor-markdown");
     var settingsBlock = document.getElementById("content-editor-settings");
+    var joinBlock = document.getElementById("content-editor-join");
     var textarea = document.getElementById("content-editor-textarea");
     var overriddenNote = document.getElementById("content-editor-overridden");
     var titleInput = document.getElementById("content-editor-title");
     var subtitleTextInput = document.getElementById("content-editor-subtitle-text");
     var subtitleUrlInput = document.getElementById("content-editor-subtitle-url");
+    var joinTitleInput = document.getElementById("content-editor-join-title");
     var saveBtn = document.getElementById("content-editor-save");
     var revertBtn = document.getElementById("content-editor-revert");
+    var sectionsBlock = document.getElementById("content-editor-sections");
+    var SECTION_KEYS = ["section_join", "section_news", "section_lore"];
 
     function isSettings() { return select.value === "settings"; }
+    function isJoin() { return select.value === "join_title"; }
+    function isSections() { return select.value === "sections"; }
 
     function loadCurrent() {
-      if (isSettings()) {
-        mdBlock.hidden = true;
-        settingsBlock.hidden = false;
-        revertBtn.hidden = true;
+      mdBlock.hidden = isSettings() || isJoin() || isSections();
+      settingsBlock.hidden = !isSettings();
+      joinBlock.hidden = !isJoin();
+      if (sectionsBlock) sectionsBlock.hidden = !isSections();
+      revertBtn.hidden = isSettings() || isSections();
+
+      if (isSections()) {
+        fetch("/api/admin/settings", { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            SECTION_KEYS.forEach(function (key) {
+              var el = document.getElementById("content-editor-" + key);
+              if (el && data[key]) el.value = data[key];
+            });
+          })
+          .catch(function () { showMessage("Could not load current settings.", true); });
+      } else if (isSettings()) {
         fetch("/api/admin/settings", { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -1177,11 +1258,16 @@
             subtitleUrlInput.value = data.brand_subtitle_url || "";
           })
           .catch(function () { showMessage("Could not load current settings.", true); });
+      } else if (isJoin()) {
+        fetch(adminEndpoint("content/join_title"), { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            joinTitleInput.value = data.text || "";
+            overriddenNote.hidden = !data.overridden;
+          })
+          .catch(function () { showMessage("Could not load current content.", true); });
       } else {
-        settingsBlock.hidden = true;
-        mdBlock.hidden = false;
-        revertBtn.hidden = false;
-        fetch("/api/admin/content/" + select.value, { credentials: "same-origin" })
+        fetch(adminEndpoint("content/" + select.value), { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             textarea.value = data.text || "";
@@ -1197,7 +1283,17 @@
     saveBtn.addEventListener("click", function () {
       saveBtn.disabled = true;
       var done = function () { saveBtn.disabled = false; };
-      if (isSettings()) {
+      if (isSections()) {
+        var payload = {};
+        SECTION_KEYS.forEach(function (key) {
+          var el = document.getElementById("content-editor-" + key);
+          if (el) payload[key] = el.value;
+        });
+        postJson("/api/admin/settings", payload)
+          .then(function () { showMessage("Section display saved -- live now.", false); })
+          .catch(function (e) { showMessage(e.message, true); })
+          .finally(done);
+      } else if (isSettings()) {
         postJson("/api/admin/settings", {
           brand_title: titleInput.value,
           brand_subtitle_text: subtitleTextInput.value,
@@ -1206,8 +1302,16 @@
           .then(function () { showMessage("Settings saved.", false); })
           .catch(function (e) { showMessage(e.message, true); })
           .finally(done);
+      } else if (isJoin()) {
+        postJson(adminEndpoint("content/join_title"), { text: joinTitleInput.value })
+          .then(function () {
+            showMessage("Saved -- live now.", false);
+            overriddenNote.hidden = false;
+          })
+          .catch(function (e) { showMessage(e.message, true); })
+          .finally(done);
       } else {
-        postJson("/api/admin/content/" + select.value, { text: textarea.value })
+        postJson(adminEndpoint("content/" + select.value), { text: textarea.value })
           .then(function () {
             showMessage("Saved -- live now.", false);
             overriddenNote.hidden = false;
@@ -1218,16 +1322,203 @@
     });
 
     revertBtn.addEventListener("click", function () {
-      if (isSettings()) return;
+      if (isSettings() || isSections()) return;
       if (!confirm("Revert to the bundled default? Your live edit will be discarded.")) return;
       revertBtn.disabled = true;
-      postJson("/api/admin/content/" + select.value + "/revert", {})
+      var key = isJoin() ? "join_title" : select.value;
+      postJson(adminEndpoint("content/" + key + "/revert"), {})
         .then(function () {
           showMessage("Reverted to default.", false);
           loadCurrent();
         })
         .catch(function (e) { showMessage(e.message, true); })
         .finally(function () { revertBtn.disabled = false; });
+    });
+  }
+
+  function wireWorldsEditor() {
+    var list = document.getElementById("worlds-list");
+    if (!list) return;
+
+    var addLabel = document.getElementById("worlds-add-label");
+    var addColor = document.getElementById("worlds-add-color");
+    var addBtn = document.getElementById("worlds-add-btn");
+    var saveBtn = document.getElementById("worlds-save-btn");
+
+    var COLOR_NAMES = { good: "Green", accent: "Blue", purple: "Purple", warn: "Orange", bad: "Red" };
+    var state = [];
+
+    function slugify(label) {
+      var s = label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      return s.slice(0, 40) || "world";
+    }
+
+    function uniqueSlug(base) {
+      var slug = base, n = 2;
+      var existing = state.map(function (w) { return w.slug; });
+      while (existing.indexOf(slug) !== -1) {
+        slug = (base + "-" + n).slice(0, 40);
+        n++;
+      }
+      return slug;
+    }
+
+    function colorOptions(selected) {
+      return Object.keys(COLOR_NAMES).map(function (key) {
+        return '<option value="' + key + '"' + (key === selected ? " selected" : "") + ">" + COLOR_NAMES[key] + "</option>";
+      }).join("");
+    }
+
+    function render() {
+      list.innerHTML = "";
+      state.forEach(function (world, i) {
+        var row = document.createElement("div");
+        row.className = "worlds-row";
+        row.innerHTML =
+          '<input type="text" class="worlds-row-label" maxlength="60" value="' + world.label.replace(/"/g, "&quot;") + '">' +
+          '<select class="worlds-row-color">' + colorOptions(world.color) + "</select>" +
+          '<input type="text" class="worlds-row-image" placeholder="logo filename (optional)" maxlength="200" value="' + (world.image || "").replace(/"/g, "&quot;") + '">' +
+          '<span class="worlds-row-slug">/world/' + world.slug + (world.primary ? ' <span class="worlds-row-badge">Live</span>' : "") + "</span>" +
+          '<button type="button" class="button-secondary worlds-row-up"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">&uarr;</button>' +
+          '<button type="button" class="button-secondary worlds-row-down"' + (i === state.length - 1 ? " disabled" : "") + ' aria-label="Move down">&darr;</button>' +
+          '<button type="button" class="button-secondary worlds-row-delete"' + (world.primary ? " disabled" : "") + ' aria-label="Delete">&#x2715;</button>';
+
+        row.querySelector(".worlds-row-label").addEventListener("input", function (e) { world.label = e.target.value; });
+        row.querySelector(".worlds-row-color").addEventListener("change", function (e) { world.color = e.target.value; });
+        row.querySelector(".worlds-row-image").addEventListener("input", function (e) { world.image = e.target.value; });
+        row.querySelector(".worlds-row-up").addEventListener("click", function () {
+          if (i === 0) return;
+          state.splice(i - 1, 0, state.splice(i, 1)[0]);
+          render();
+        });
+        row.querySelector(".worlds-row-down").addEventListener("click", function () {
+          if (i === state.length - 1) return;
+          state.splice(i + 1, 0, state.splice(i, 1)[0]);
+          render();
+        });
+        row.querySelector(".worlds-row-delete").addEventListener("click", function () {
+          if (world.primary) return;
+          state.splice(i, 1);
+          render();
+        });
+
+        list.appendChild(row);
+      });
+    }
+
+    fetch("/api/admin/worlds", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { state = data; render(); })
+      .catch(function () { showMessage("Could not load worlds.", true); });
+
+    addBtn.addEventListener("click", function () {
+      var label = addLabel.value.trim();
+      if (!label) return;
+      state.push({ slug: uniqueSlug(slugify(label)), label: label, color: addColor.value, primary: false, image: "" });
+      addLabel.value = "";
+      render();
+    });
+
+    saveBtn.addEventListener("click", function () {
+      saveBtn.disabled = true;
+      postJson("/api/admin/worlds", { worlds: state })
+        .then(function (data) {
+          state = data;
+          render();
+          showMessage("Worlds saved.", false);
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () { saveBtn.disabled = false; });
+    });
+  }
+
+  function wireLinksEditor() {
+    var list = document.getElementById("links-list");
+    if (!list) return;
+
+    var addLabel = document.getElementById("links-add-label");
+    var addUrl = document.getElementById("links-add-url");
+    var addColor = document.getElementById("links-add-color");
+    var addGroup = document.getElementById("links-add-group");
+    var addBtn = document.getElementById("links-add-btn");
+    var saveBtn = document.getElementById("links-save-btn");
+
+    var COLOR_NAMES = { good: "Green", accent: "Blue", purple: "Purple", warn: "Orange", bad: "Red" };
+    var state = [];
+
+    function colorOptions(selected) {
+      return Object.keys(COLOR_NAMES).map(function (key) {
+        return '<option value="' + key + '"' + (key === selected ? " selected" : "") + ">" + COLOR_NAMES[key] + "</option>";
+      }).join("");
+    }
+
+    function render() {
+      list.innerHTML = "";
+      var items = state;
+      items.forEach(function (link, i) {
+        var row = document.createElement("div");
+        row.className = "worlds-row";
+        row.innerHTML =
+          '<input type="text" class="links-row-label" maxlength="60" placeholder="Label" value="' + link.label.replace(/"/g, "&quot;") + '">' +
+          '<input type="text" class="links-row-url" placeholder="https://..." value="' + link.url.replace(/"/g, "&quot;") + '">' +
+          '<select class="links-row-color">' + colorOptions(link.color) + "</select>" +
+          '<input type="text" class="links-row-group" maxlength="40" placeholder="Group" value="' + link.group.replace(/"/g, "&quot;") + '">' +
+          '<input type="text" class="links-row-icon" maxlength="200" placeholder="icon filename (optional)" value="' + (link.icon || "").replace(/"/g, "&quot;") + '">' +
+          '<button type="button" class="button-secondary links-row-up"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">&uarr;</button>' +
+          '<button type="button" class="button-secondary links-row-down"' + (i === items.length - 1 ? " disabled" : "") + ' aria-label="Move down">&darr;</button>' +
+          '<button type="button" class="button-secondary links-row-delete" aria-label="Delete">&#x2715;</button>';
+
+        row.querySelector(".links-row-label").addEventListener("input", function (e) { link.label = e.target.value; });
+        row.querySelector(".links-row-url").addEventListener("input", function (e) { link.url = e.target.value; });
+        row.querySelector(".links-row-color").addEventListener("change", function (e) { link.color = e.target.value; });
+        row.querySelector(".links-row-group").addEventListener("input", function (e) { link.group = e.target.value; });
+        row.querySelector(".links-row-icon").addEventListener("input", function (e) { link.icon = e.target.value; });
+        row.querySelector(".links-row-up").addEventListener("click", function () {
+          if (i === 0) return;
+          items.splice(i - 1, 0, items.splice(i, 1)[0]);
+          render();
+        });
+        row.querySelector(".links-row-down").addEventListener("click", function () {
+          if (i === items.length - 1) return;
+          items.splice(i + 1, 0, items.splice(i, 1)[0]);
+          render();
+        });
+        row.querySelector(".links-row-delete").addEventListener("click", function () {
+          items.splice(i, 1);
+          render();
+        });
+
+        list.appendChild(row);
+      });
+    }
+
+    fetch("/api/admin/links", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { state = data; render(); })
+      .catch(function () { showMessage("Could not load links.", true); });
+
+    addBtn.addEventListener("click", function () {
+      var label = addLabel.value.trim();
+      var url = addUrl.value.trim();
+      var group = addGroup.value.trim();
+      if (!label || !url || !group) return;
+      state.push({ label: label, url: url, color: addColor.value, group: group, icon: "" });
+      addLabel.value = "";
+      addUrl.value = "";
+      addGroup.value = "";
+      render();
+    });
+
+    saveBtn.addEventListener("click", function () {
+      saveBtn.disabled = true;
+      postJson("/api/admin/links", { links: state })
+        .then(function (data) {
+          state = data;
+          render();
+          showMessage("Links saved.", false);
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () { saveBtn.disabled = false; });
     });
   }
 
@@ -1253,6 +1544,8 @@
     pollStatus();
     pollMapPositions();
     pollChat();
+    wireAlwaysOpenSections();
+    wireMapCollapse();
     wireLeftColumnHeightSync();
     wireMapFullscreen();
     wireMapChatDock();
@@ -1266,5 +1559,7 @@
     wireForms();
     wireCopyFields();
     wireContentEditor();
+    wireWorldsEditor();
+    wireLinksEditor();
   });
 })();

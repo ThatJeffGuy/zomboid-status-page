@@ -6,8 +6,8 @@ def _path() -> str:
     return os.environ.get("PLAYER_DB", "/run/secrets/player.db")
 
 
-def total_players() -> int | None:
-    path = _path()
+def total_players(db_path: str | None = None) -> int | None:
+    path = db_path or _path()
     if not os.path.exists(path):
         return None
     try:

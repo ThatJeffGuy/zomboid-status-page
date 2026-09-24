@@ -11,17 +11,44 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s pz-hel
 log = logging.getLogger("pz-helper")
 
 SOCK_PATH = os.environ.get("PZ_HELPER_SOCK", "/run/pz-helper/helper.sock")
-CONTAINER = os.environ.get("PZ_GAME_CONTAINER", "zomboid-server")
-CARETAKING_SCRIPT = os.environ.get("PZ_CARETAKING_SCRIPT", "/opt/app/zomboid/config/storms/caretaking.sh")
-EVENTS_SCRIPT = os.environ.get("PZ_EVENTS_SCRIPT", "/opt/app/zomboid/config/storms/storms.sh")
 LOG_SINCE = "1h"
+
+DEFAULT_WORLD = os.environ.get("PZ_DEFAULT_WORLD", "main")
+WORLDS = {
+    "main": {
+        "container": os.environ.get("PZ_GAME_CONTAINER", "zomboid-server"),
+        "caretaking_script": os.environ.get(
+            "PZ_CARETAKING_SCRIPT", "/opt/app/zomboid/config/storms/caretaking.sh"
+        ),
+        "events_script": os.environ.get(
+            "PZ_EVENTS_SCRIPT", "/opt/app/zomboid/config/storms/storms.sh"
+        ),
+    },
+    "second": {
+        "container": os.environ.get("PZ_SECOND_GAME_CONTAINER", "zomboid-server-2"),
+        "caretaking_script": os.environ.get(
+            "PZ_SECOND_CARETAKING_SCRIPT", "/opt/app/zomboid-2/config/storms/caretaking.sh"
+        ),
+        "events_script": os.environ.get(
+            "PZ_SECOND_EVENTS_SCRIPT", "/opt/app/zomboid-2/config/storms/storms.sh"
+        ),
+    },
+}
 
 _EVENT_SCRIPT_RE = re.compile(r"^storm-[a-z0-9]+\.sh$")
 
 
-def _docker_state() -> str:
+def _world(req: dict) -> dict:
+    name = req.get("world") or DEFAULT_WORLD
+    world = WORLDS.get(name)
+    if world is None:
+        raise RuntimeError(f"unknown world: {name!r}")
+    return world
+
+
+def _docker_state(req: dict) -> str:
     result = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}} {{.State.StartedAt}}", CONTAINER],
+        ["docker", "inspect", "-f", "{{.State.Running}} {{.State.StartedAt}}", _world(req)["container"]],
         capture_output=True, text=True, timeout=10,
     )
     if result.returncode != 0:
@@ -32,9 +59,9 @@ def _docker_state() -> str:
 LOG_TAIL_LINES = 20000
 
 
-def _logs_tail() -> str:
+def _logs_tail(req: dict) -> str:
     result = subprocess.run(
-        ["docker", "logs", "--since", LOG_SINCE, "--tail", str(LOG_TAIL_LINES), CONTAINER],
+        ["docker", "logs", "--since", LOG_SINCE, "--tail", str(LOG_TAIL_LINES), _world(req)["container"]],
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
@@ -42,29 +69,29 @@ def _logs_tail() -> str:
     return result.stdout.strip()
 
 
-def _caretaking(flag: str) -> str:
+def _caretaking(req: dict, flag: str) -> str:
     subprocess.Popen(
-        ["sudo", "-n", "-u", "root", CARETAKING_SCRIPT, flag],
+        ["sudo", "-n", "-u", "root", _world(req)["caretaking_script"], flag],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
     return "started"
 
 
-def _event_force(script: str) -> str:
+def _event_force(req: dict, script: str) -> str:
     if not _EVENT_SCRIPT_RE.match(script):
         raise RuntimeError(f"refusing to force unrecognized storm script: {script!r}")
     subprocess.Popen(
-        ["sudo", "-n", "-u", "root", EVENTS_SCRIPT, "--force", script],
+        ["sudo", "-n", "-u", "root", _world(req)["events_script"], "--force", script],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
     return "started"
 
 
-def _event_allow_tonight() -> str:
+def _event_allow_tonight(req: dict) -> str:
     result = subprocess.run(
-        ["sudo", "-n", "-u", "root", EVENTS_SCRIPT, "--allow-tonight"],
+        ["sudo", "-n", "-u", "root", _world(req)["events_script"], "--allow-tonight"],
         capture_output=True, text=True, timeout=15,
     )
     if result.returncode != 0:
@@ -73,12 +100,12 @@ def _event_allow_tonight() -> str:
 
 
 OPS = {
-    "DOCKER_STATE": lambda req: _docker_state(),
-    "LOGS_TAIL": lambda req: _logs_tail(),
-    "CARETAKING_STATUS": lambda req: _caretaking("--status"),
-    "CARETAKING_FORCE": lambda req: _caretaking("--force"),
-    "EVENT_FORCE": lambda req: _event_force(str(req.get("script", ""))),
-    "EVENT_ALLOW_TONIGHT": lambda req: _event_allow_tonight(),
+    "DOCKER_STATE": lambda req: _docker_state(req),
+    "LOGS_TAIL": lambda req: _logs_tail(req),
+    "CARETAKING_STATUS": lambda req: _caretaking(req, "--status"),
+    "CARETAKING_FORCE": lambda req: _caretaking(req, "--force"),
+    "EVENT_FORCE": lambda req: _event_force(req, str(req.get("script", ""))),
+    "EVENT_ALLOW_TONIGHT": lambda req: _event_allow_tonight(req),
 }
 
 

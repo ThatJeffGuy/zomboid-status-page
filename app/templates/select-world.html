@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Choose a World — Zomboid Server{% endblock %}
+{% block content %}
+<div class="world-picker">
+  <h1 class="world-picker-heading">Pick a world</h1>
+  <p class="hint world-picker-hint">Choose a server to see its live map, player status, and patch notes.</p>
+
+  <div class="world-picker-grid">
+    {% for w in worlds %}
+    <a class="world-picker-card" href="/world/{{ w.slug }}">
+      {% if w.image %}
+      <img class="world-picker-icon world-picker-img" src="/icons/{{ w.image }}" alt="">
+      {% else %}
+      <svg class="world-picker-icon" viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--{{ w.color }})"/><text x="12" y="17" text-anchor="middle" font-size="13" font-weight="700" fill="#0a1420">{{ w.label[0]|upper }}</text></svg>
+      {% endif %}
+      <span class="world-picker-name">{{ w.label }}</span>
+      <span class="world-picker-desc">{{ "Live map, status & patch notes" if w.primary else "Coming soon" }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
