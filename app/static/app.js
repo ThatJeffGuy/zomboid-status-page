@@ -67,21 +67,28 @@
       }
     }
 
+    // The running event (red, pulsing) sits above the map and only shows while
+    // one is active; the next scheduled event sits below the map.
     var eventBanner = document.getElementById("event-banner");
     if (eventBanner) {
       fillEventBannerRow(document.getElementById("event-banner-active"), "Event Active: ",
         activeEvent && activeEvent.name,
         [activeEvent && activeEvent.flavor, activeEvent && activeEvent.seconds_left ? "ends in " + fmtDuration(activeEvent.seconds_left) : null]);
+      eventBanner.hidden = !activeEvent;
+    }
+    var nextBox = document.getElementById("event-banner-next-box");
+    if (nextBox) {
       fillEventBannerRow(document.getElementById("event-banner-next"), "Next Event: ",
         nextEventName,
         [nextEventFlavor, nextEventStartDisplaySimple || nextEventStartDisplay]);
-      eventBanner.classList.toggle("event-banner-is-active", !!activeEvent);
-      eventBanner.hidden = !activeEvent && !nextEventName;
+      nextBox.hidden = !nextEventName;
     }
 
     populateNextEventDisplay("next-event-info", "next-event-name-simple", "next-event-when", "next-event-flavor-simple", nextEventName, nextEventFlavor, nextEventStartDisplay, nextEventStartDisplaySimple);
   }
 
+  // Rebuilds a banner row from scratch so the " — " separators only appear
+  // between parts that actually have text.
   function fillEventBannerRow(row, label, name, extras) {
     if (!row) return;
     row.textContent = "";
@@ -219,23 +226,23 @@
   var MAP_PADDING = 80;
   var MAP_MIN_CROP = 500;
 
-  var OFF_MAP_ZONE = { x: 60, y: 40, w: 900, h: 300 };
-  var OFF_MAP_COLS = 8;
+  // Always-visible box in the empty area above the river, between a custom
+  // map's corner logo and the east river (must match the <rect> in
+  // index.html/admin.html). Players whose coordinates fall outside the map
+  // (e.g. RV interiors, placed ~22,000+ tiles east) are parked here.
+  var OFF_MAP_ZONE = { x: 660, y: 60, w: 300, h: 230 };
+  var OFF_MAP_LABEL_H = 40;
+  var OFF_MAP_COLS = 4;
 
   function offMapSlotPosition(index) {
     var cellW = OFF_MAP_ZONE.w / OFF_MAP_COLS;
-    var rowH = 70;
+    var rowH = 45;
     var col = index % OFF_MAP_COLS;
     var row = Math.floor(index / OFF_MAP_COLS);
     return {
       px: OFF_MAP_ZONE.x + cellW * (col + 0.5),
-      py: OFF_MAP_ZONE.y + rowH * row + rowH / 2,
+      py: OFF_MAP_ZONE.y + OFF_MAP_LABEL_H + rowH * row + rowH / 2,
     };
-  }
-
-  function updateOffMapZoneVisibility(show) {
-    var zone = document.getElementById("map-offmap-zone");
-    if (zone) zone.hidden = !show;
   }
 
   var manualViewActive = false;
@@ -767,13 +774,13 @@
     var displayPoints = spreadOverlaps(points);
     lastMapPoints = displayPoints;
     drawDots(displayPoints);
-    updateOffMapZoneVisibility(points.some(function (p) { return !p.onMap; }));
 
     mapFullW = fullW;
     mapFullH = fullH;
     if (!manualViewActive) {
-      var onMapPoints = points.filter(function (p) { return p.onMap; });
-      var box = computeMapViewBox(onMapPoints, fullW, fullH);
+      // Off-map players count too, so the auto-zoom keeps the Off Map box
+      // in view when someone's in there.
+      var box = computeMapViewBox(points, fullW, fullH);
       svg.setAttribute("viewBox", box.join(" "));
       updateZoomButtonState();
     } else if (followingPlayer) {
@@ -1045,11 +1052,11 @@
     var KEY = "admin-map-collapsed";
     try {
       if (localStorage.getItem(KEY) === "1") details.open = false;
-    } catch (e) { }
+    } catch (e) { /* storage unavailable -- default open */ }
     details.addEventListener("toggle", function () {
       try {
         localStorage.setItem(KEY, details.open ? "0" : "1");
-      } catch (e) { }
+      } catch (e) { /* ignore */ }
     });
   }
 
@@ -1162,6 +1169,70 @@
     });
   }
 
+  var IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg";
+
+  // kind: "icons" (logos / link icons, served at /icons/) or "media"
+  // (images for markdown content, served at /media/).
+  function uploadImage(kind, file) {
+    var form = new FormData();
+    form.append("file", file);
+    return fetch("/api/admin/" + kind, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-CSRF-Token": csrfToken() },
+      body: form,
+    }).then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) throw new Error(data.detail || ("upload failed (" + r.status + ")"));
+        return data;
+      }, function () {
+        throw new Error("upload failed (" + r.status + ")");
+      });
+    });
+  }
+
+  function uploadIcon(file) { return uploadImage("icons", file); }
+
+  // Thumbnail + Browse + remove control for an editor row. Pair with
+  // wireImagePicker() once the row's innerHTML is set.
+  function imagePickerHtml(filename, noneText, removeLabel) {
+    return '<span class="worlds-row-image">' +
+      (filename
+        ? '<img class="worlds-row-thumb" src="/icons/' + encodeURIComponent(filename) + '" alt="" title="' + filename.replace(/"/g, "&quot;") + '">'
+        : '<span class="worlds-row-nologo">' + noneText + "</span>") +
+      '<input type="file" class="image-pick-file" accept="' + IMAGE_ACCEPT + '" hidden>' +
+      '<button type="button" class="button-secondary image-pick-browse">Browse&hellip;</button>' +
+      (filename ? '<button type="button" class="button-secondary image-pick-clear" aria-label="' + removeLabel + '" title="' + removeLabel + '">&#x2715;</button>' : "") +
+      "</span>";
+  }
+
+  // onChange(filename) is called after an upload ("" when removed); the
+  // caller stores it and re-renders.
+  function wireImagePicker(row, onChange, uploadedMsg) {
+    var fileInput = row.querySelector(".image-pick-file");
+    var browseBtn = row.querySelector(".image-pick-browse");
+    browseBtn.addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function () {
+      var file = fileInput.files[0];
+      if (!file) return;
+      browseBtn.disabled = true;
+      browseBtn.textContent = "Uploading…";
+      uploadIcon(file)
+        .then(function (data) {
+          onChange(data.filename);
+          showMessage(uploadedMsg, false);
+        })
+        .catch(function (e) {
+          showMessage(e.message, true);
+          fileInput.value = "";
+          browseBtn.disabled = false;
+          browseBtn.innerHTML = "Browse&hellip;";
+        });
+    });
+    var clearBtn = row.querySelector(".image-pick-clear");
+    if (clearBtn) clearBtn.addEventListener("click", function () { onChange(""); });
+  }
+
   function wireActionButtons() {
     document.querySelectorAll(".admin-action").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1222,24 +1293,101 @@
     var titleInput = document.getElementById("content-editor-title");
     var subtitleTextInput = document.getElementById("content-editor-subtitle-text");
     var subtitleUrlInput = document.getElementById("content-editor-subtitle-url");
+    var taglineInput = document.getElementById("content-editor-tagline");
+    var mdImageFile = document.getElementById("content-editor-image-file");
+    var mdImageBtn = document.getElementById("content-editor-image-btn");
+
+    mdImageBtn.addEventListener("click", function () { mdImageFile.click(); });
+    mdImageFile.addEventListener("change", function () {
+      var file = mdImageFile.files[0];
+      if (!file) return;
+      mdImageBtn.disabled = true;
+      mdImageBtn.textContent = "Uploading…";
+      uploadImage("media", file)
+        .then(function (data) {
+          var alt = file.name.replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "");
+          var snippet = "![" + alt + "](/media/" + data.filename + ")";
+          var start = textarea.selectionStart, end = textarea.selectionEnd;
+          var before = textarea.value.slice(0, start), after = textarea.value.slice(end);
+          if (before && !/\n$/.test(before)) snippet = "\n" + snippet;
+          if (after && !/^\n/.test(after)) snippet += "\n";
+          textarea.value = before + snippet + after;
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd = before.length + snippet.length;
+          showMessage("Image inserted — click Save to publish it.", false);
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () {
+          mdImageFile.value = "";
+          mdImageBtn.disabled = false;
+          mdImageBtn.innerHTML = "Insert image&hellip;";
+        });
+    });
+    var logoPreview = document.getElementById("content-editor-logo-preview");
+    var logoNone = document.getElementById("content-editor-logo-none");
+    var logoFile = document.getElementById("content-editor-logo-file");
+    var logoBrowse = document.getElementById("content-editor-logo-browse");
+    var logoClear = document.getElementById("content-editor-logo-clear");
+    var brandLogo = "";
+
+    function showBrandLogo(name) {
+      brandLogo = name || "";
+      logoPreview.hidden = !brandLogo;
+      if (brandLogo) logoPreview.src = "/icons/" + encodeURIComponent(brandLogo);
+      logoNone.hidden = !!brandLogo;
+      logoClear.hidden = !brandLogo;
+    }
+
+    logoBrowse.addEventListener("click", function () { logoFile.click(); });
+    logoFile.addEventListener("change", function () {
+      var file = logoFile.files[0];
+      if (!file) return;
+      logoBrowse.disabled = true;
+      logoBrowse.textContent = "Uploading…";
+      uploadIcon(file)
+        .then(function (data) {
+          showBrandLogo(data.filename);
+          showMessage("Logo uploaded — click Save to apply it.", false);
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () {
+          logoFile.value = "";
+          logoBrowse.disabled = false;
+          logoBrowse.innerHTML = "Browse&hellip;";
+        });
+    });
+    logoClear.addEventListener("click", function () { showBrandLogo(""); });
     var joinTitleInput = document.getElementById("content-editor-join-title");
     var saveBtn = document.getElementById("content-editor-save");
     var revertBtn = document.getElementById("content-editor-revert");
     var sectionsBlock = document.getElementById("content-editor-sections");
+    var pickerBlock = document.getElementById("content-editor-picker");
+    var pickerHeadingInput = document.getElementById("content-editor-picker-heading");
+    var pickerTextInput = document.getElementById("content-editor-picker-text");
     var SECTION_KEYS = ["section_join", "section_news", "section_lore"];
 
     function isSettings() { return select.value === "settings"; }
     function isJoin() { return select.value === "join_title"; }
     function isSections() { return select.value === "sections"; }
+    function isPicker() { return select.value === "picker"; }
 
     function loadCurrent() {
-      mdBlock.hidden = isSettings() || isJoin() || isSections();
+      mdBlock.hidden = isSettings() || isJoin() || isSections() || isPicker();
       settingsBlock.hidden = !isSettings();
       joinBlock.hidden = !isJoin();
       if (sectionsBlock) sectionsBlock.hidden = !isSections();
-      revertBtn.hidden = isSettings() || isSections();
+      pickerBlock.hidden = !isPicker();
+      revertBtn.hidden = isSettings() || isSections() || isPicker();
 
-      if (isSections()) {
+      if (isPicker()) {
+        fetch("/api/admin/settings", { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            pickerHeadingInput.value = data.picker_heading || "";
+            pickerTextInput.value = data.picker_text || "";
+          })
+          .catch(function () { showMessage("Could not load current settings.", true); });
+      } else if (isSections()) {
         fetch("/api/admin/settings", { credentials: "same-origin" })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -1254,6 +1402,8 @@
           .then(function (r) { return r.json(); })
           .then(function (data) {
             titleInput.value = data.brand_title || "";
+            taglineInput.value = data.brand_tagline || "";
+            showBrandLogo(data.brand_logo);
             subtitleTextInput.value = data.brand_subtitle_text || "";
             subtitleUrlInput.value = data.brand_subtitle_url || "";
           })
@@ -1283,7 +1433,19 @@
     saveBtn.addEventListener("click", function () {
       saveBtn.disabled = true;
       var done = function () { saveBtn.disabled = false; };
-      if (isSections()) {
+      if (isPicker()) {
+        postJson("/api/admin/settings", {
+          picker_heading: pickerHeadingInput.value,
+          picker_text: pickerTextInput.value,
+        })
+          .then(function (data) {
+            pickerHeadingInput.value = data.picker_heading || "";
+            pickerTextInput.value = data.picker_text || "";
+            showMessage("Front page text saved -- live now.", false);
+          })
+          .catch(function (e) { showMessage(e.message, true); })
+          .finally(done);
+      } else if (isSections()) {
         var payload = {};
         SECTION_KEYS.forEach(function (key) {
           var el = document.getElementById("content-editor-" + key);
@@ -1296,6 +1458,8 @@
       } else if (isSettings()) {
         postJson("/api/admin/settings", {
           brand_title: titleInput.value,
+          brand_tagline: taglineInput.value,
+          brand_logo: brandLogo,
           brand_subtitle_text: subtitleTextInput.value,
           brand_subtitle_url: subtitleUrlInput.value,
         })
@@ -1330,6 +1494,88 @@
         .then(function () {
           showMessage("Reverted to default.", false);
           loadCurrent();
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () { revertBtn.disabled = false; });
+    });
+  }
+
+  function wireMapTextureEditor() {
+    var preview = document.getElementById("map-texture-preview");
+    if (!preview) return;
+
+    var status = document.getElementById("map-texture-status");
+    var dims = document.getElementById("map-texture-dims");
+    var fileInput = document.getElementById("map-texture-file");
+    var browseBtn = document.getElementById("map-texture-browse");
+    var revertBtn = document.getElementById("map-texture-revert");
+    var DEFAULT_W = 1400, DEFAULT_H = 1386;
+
+    preview.addEventListener("load", function () {
+      var w = preview.naturalWidth, h = preview.naturalHeight;
+      if (!w || !h) { dims.hidden = true; return; }
+      var off = Math.abs((w / h) / (DEFAULT_W / DEFAULT_H) - 1) > 0.02;
+      dims.textContent = w + "×" + h + " px" + (off
+        ? " — different proportions from the default (1400×1386), so it will look stretched and player dots may be off."
+        : "");
+      dims.className = "hint" + (off ? " map-texture-dims-warn" : "");
+      dims.hidden = false;
+    });
+
+    function show(info) {
+      preview.src = info.url;
+      status.textContent = info.custom ? "Using a custom map: " + info.filename : "Using the default map.";
+      revertBtn.hidden = !info.custom;
+      var live = document.getElementById("map-texture");
+      if (live) live.setAttribute("href", info.url);
+    }
+
+    fetch(adminEndpoint("map"), { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(show)
+      .catch(function () { status.textContent = "Could not load the current map texture."; });
+
+    browseBtn.addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function () {
+      var file = fileInput.files[0];
+      if (!file) return;
+      browseBtn.disabled = true;
+      browseBtn.textContent = "Uploading…";
+      var form = new FormData();
+      form.append("file", file);
+      fetch(adminEndpoint("map"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken() },
+        body: form,
+      })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            if (!r.ok) throw new Error(data.detail || ("upload failed (" + r.status + ")"));
+            return data;
+          }, function () {
+            throw new Error("upload failed (" + r.status + ")");
+          });
+        })
+        .then(function (info) {
+          show(info);
+          showMessage("Custom map uploaded -- live now.", false);
+        })
+        .catch(function (e) { showMessage(e.message, true); })
+        .finally(function () {
+          fileInput.value = "";
+          browseBtn.disabled = false;
+          browseBtn.innerHTML = "Upload custom map&hellip;";
+        });
+    });
+
+    revertBtn.addEventListener("click", function () {
+      if (!window.confirm("Switch this world back to the default map? The custom image will be deleted.")) return;
+      revertBtn.disabled = true;
+      postJson(adminEndpoint("map/revert"), {})
+        .then(function (info) {
+          show(info);
+          showMessage("Back to the default map -- live now.", false);
         })
         .catch(function (e) { showMessage(e.message, true); })
         .finally(function () { revertBtn.disabled = false; });
@@ -1377,7 +1623,8 @@
         row.innerHTML =
           '<input type="text" class="worlds-row-label" maxlength="60" value="' + world.label.replace(/"/g, "&quot;") + '">' +
           '<select class="worlds-row-color">' + colorOptions(world.color) + "</select>" +
-          '<input type="text" class="worlds-row-image" placeholder="logo filename (optional)" maxlength="200" value="' + (world.image || "").replace(/"/g, "&quot;") + '">' +
+          '<input type="text" class="worlds-row-desc" maxlength="120" placeholder="Subtext: ' + (world.primary ? "Live map, status &amp; patch notes" : "Coming soon") + '" value="' + (world.description || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;") + '">' +
+          imagePickerHtml(world.image, "No logo", "Remove logo") +
           '<span class="worlds-row-slug">/world/' + world.slug + (world.primary ? ' <span class="worlds-row-badge">Live</span>' : "") + "</span>" +
           '<button type="button" class="button-secondary worlds-row-up"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">&uarr;</button>' +
           '<button type="button" class="button-secondary worlds-row-down"' + (i === state.length - 1 ? " disabled" : "") + ' aria-label="Move down">&darr;</button>' +
@@ -1385,7 +1632,8 @@
 
         row.querySelector(".worlds-row-label").addEventListener("input", function (e) { world.label = e.target.value; });
         row.querySelector(".worlds-row-color").addEventListener("change", function (e) { world.color = e.target.value; });
-        row.querySelector(".worlds-row-image").addEventListener("input", function (e) { world.image = e.target.value; });
+        row.querySelector(".worlds-row-desc").addEventListener("input", function (e) { world.description = e.target.value; });
+        wireImagePicker(row, function (name) { world.image = name; render(); }, "Logo uploaded — click Save Worlds to apply it.");
         row.querySelector(".worlds-row-up").addEventListener("click", function () {
           if (i === 0) return;
           state.splice(i - 1, 0, state.splice(i, 1)[0]);
@@ -1414,7 +1662,7 @@
     addBtn.addEventListener("click", function () {
       var label = addLabel.value.trim();
       if (!label) return;
-      state.push({ slug: uniqueSlug(slugify(label)), label: label, color: addColor.value, primary: false, image: "" });
+      state.push({ slug: uniqueSlug(slugify(label)), label: label, color: addColor.value, primary: false, image: "", description: "" });
       addLabel.value = "";
       render();
     });
@@ -1463,7 +1711,7 @@
           '<input type="text" class="links-row-url" placeholder="https://..." value="' + link.url.replace(/"/g, "&quot;") + '">' +
           '<select class="links-row-color">' + colorOptions(link.color) + "</select>" +
           '<input type="text" class="links-row-group" maxlength="40" placeholder="Group" value="' + link.group.replace(/"/g, "&quot;") + '">' +
-          '<input type="text" class="links-row-icon" maxlength="200" placeholder="icon filename (optional)" value="' + (link.icon || "").replace(/"/g, "&quot;") + '">' +
+          imagePickerHtml(link.icon, "No icon", "Remove icon") +
           '<button type="button" class="button-secondary links-row-up"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">&uarr;</button>' +
           '<button type="button" class="button-secondary links-row-down"' + (i === items.length - 1 ? " disabled" : "") + ' aria-label="Move down">&darr;</button>' +
           '<button type="button" class="button-secondary links-row-delete" aria-label="Delete">&#x2715;</button>';
@@ -1472,7 +1720,7 @@
         row.querySelector(".links-row-url").addEventListener("input", function (e) { link.url = e.target.value; });
         row.querySelector(".links-row-color").addEventListener("change", function (e) { link.color = e.target.value; });
         row.querySelector(".links-row-group").addEventListener("input", function (e) { link.group = e.target.value; });
-        row.querySelector(".links-row-icon").addEventListener("input", function (e) { link.icon = e.target.value; });
+        wireImagePicker(row, function (name) { link.icon = name; render(); }, "Icon uploaded — click Save Links to apply it.");
         row.querySelector(".links-row-up").addEventListener("click", function () {
           if (i === 0) return;
           items.splice(i - 1, 0, items.splice(i, 1)[0]);
@@ -1559,6 +1807,7 @@
     wireForms();
     wireCopyFields();
     wireContentEditor();
+    wireMapTextureEditor();
     wireWorldsEditor();
     wireLinksEditor();
   });

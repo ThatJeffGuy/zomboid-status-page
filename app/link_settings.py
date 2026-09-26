@@ -98,3 +98,4 @@ def save_links(items: list[dict]) -> list[dict]:
     with open(path, "w") as f:
         json.dump(cleaned, f)
     return cleaned
+

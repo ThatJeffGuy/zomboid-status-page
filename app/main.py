@@ -5,14 +5,14 @@ import re
 import secrets
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, chat, content_store, events, helper_client, link_settings, live_map, rcon, site_settings, status_cache, world_backends, world_settings
+from app import auth, chat, content_store, events, helper_client, link_settings, live_map, map_settings, rcon, site_settings, status_cache, uploads, world_backends, world_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("zomboid-status")
@@ -34,6 +34,16 @@ class NoCacheStaticFiles(StaticFiles):
         return response
 
 
+class UploadStaticFiles(NoCacheStaticFiles):
+    # Icons and media are admin-uploadable and may be SVG -- keep any
+    # embedded script from running if someone opens one directly.
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
 app = FastAPI(title="Zomboid Server Status")
 app.add_middleware(
     SessionMiddleware,
@@ -43,10 +53,14 @@ app.add_middleware(
     max_age=auth.SESSION_MAX_AGE_SECONDS,
 )
 app.mount("/static", NoCacheStaticFiles(directory=os.path.join(APP_DIR, "static")), name="static")
-app.mount("/icons", NoCacheStaticFiles(directory=link_settings.icons_dir(), check_dir=False), name="icons")
-app.mount("/media", NoCacheStaticFiles(directory=content_store.media_dir(), check_dir=False), name="media")
+app.mount("/icons", UploadStaticFiles(directory=link_settings.icons_dir(), check_dir=False), name="icons")
+app.mount("/maps", UploadStaticFiles(directory=map_settings.maps_dir(), check_dir=False), name="maps")
+app.mount("/media", UploadStaticFiles(directory=content_store.media_dir(), check_dir=False), name="media")
 templates = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 
+# One StatusCache per wired-up world (see app/world_backends.py) -- built
+# once at import time since the set of wired worlds is env-driven and fixed
+# for the process lifetime.
 status_caches: dict[str, status_cache.StatusCache] = {
     slug: status_cache.StatusCache(backend)
     for slug, backend in world_backends.all_backends().items()
@@ -153,6 +167,7 @@ async def world_view(slug: str, request: Request):
             csrf_token=auth.csrf_token(request),
             worlds=worlds,
             world=world,
+            map_url=map_settings.map_url(slug),
         )
 
     return _tpl("world-coming-soon.html", request, worlds=worlds, world=world)
@@ -163,6 +178,7 @@ async def api_status(slug: str):
     _backend_or_404(slug)
     s = await status_caches[slug].get()
     body = _status_dict(s)
+    # Read fresh each poll so a rename in Manage Worlds shows up without a reload.
     worlds = await asyncio.to_thread(world_settings.get_worlds)
     body["world_label"] = next((w["label"] for w in worlds if w["slug"] == slug), None)
     return JSONResponse(body)
@@ -235,6 +251,7 @@ async def admin_page(slug: str, request: Request):
         next_event=next_event,
         next_event_is_vacation=next_event_is_vacation,
         csrf_token=auth.csrf_token(request),
+        map_url=map_settings.map_url(slug),
     )
 
 
@@ -478,6 +495,10 @@ async def admin_get_settings():
 
 class SettingsBody(BaseModel):
     brand_title: str | None = None
+    brand_tagline: str | None = None
+    brand_logo: str | None = None
+    picker_heading: str | None = None
+    picker_text: str | None = None
     brand_subtitle_text: str | None = None
     brand_subtitle_url: str | None = None
     section_join: str | None = None
@@ -504,6 +525,7 @@ class WorldEntry(BaseModel):
     color: str
     primary: bool = False
     image: str = ""
+    description: str = ""
 
 
 class WorldsBody(BaseModel):
@@ -520,6 +542,64 @@ async def admin_save_worlds(request: Request, body: WorldsBody):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+async def _save_upload(request: Request, file: UploadFile, directory: str, kind: str) -> dict:
+    _require_csrf(request)
+    data = await file.read(uploads.MAX_IMAGE_BYTES + 1)
+    try:
+        name = await asyncio.to_thread(uploads.save_image, directory, file.filename or "", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    audit.info("%s upload by %s: %s (%d bytes)", kind, client_ip(request), name, len(data))
+    return {"filename": name}
+
+
+@app.post("/api/admin/icons", dependencies=[Depends(auth.require_admin_api)])
+async def admin_upload_icon(request: Request, file: UploadFile = File(...)):
+    return await _save_upload(request, file, link_settings.icons_dir(), "icon")
+
+
+def _map_info(slug: str) -> dict:
+    name = map_settings.get_custom(slug)
+    return {"custom": bool(name), "filename": name, "url": map_settings.map_url(slug)}
+
+
+@app.get("/api/{slug}/admin/map", dependencies=[Depends(auth.require_admin_api)])
+async def admin_get_map(slug: str):
+    _backend_or_404(slug)
+    return await asyncio.to_thread(_map_info, slug)
+
+
+@app.post("/api/{slug}/admin/map", dependencies=[Depends(auth.require_admin_api)])
+async def admin_upload_map(slug: str, request: Request, file: UploadFile = File(...)):
+    _backend_or_404(slug)
+    _require_csrf(request)
+    data = await file.read(map_settings.MAX_MAP_BYTES + 1)
+    try:
+        name = await asyncio.to_thread(
+            uploads.save_image, map_settings.maps_dir(), file.filename or "", data,
+            map_settings.MAP_EXTENSIONS, map_settings.MAX_MAP_BYTES,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await asyncio.to_thread(map_settings.set_custom, slug, name)
+    audit.info("map texture upload by %s: %s: %s (%d bytes)", client_ip(request), slug, name, len(data))
+    return await asyncio.to_thread(_map_info, slug)
+
+
+@app.post("/api/{slug}/admin/map/revert", dependencies=[Depends(auth.require_admin_api)])
+async def admin_revert_map(slug: str, request: Request):
+    _backend_or_404(slug)
+    _require_csrf(request)
+    await asyncio.to_thread(map_settings.clear_custom, slug)
+    audit.info("map texture reverted to default by %s: %s", client_ip(request), slug)
+    return await asyncio.to_thread(_map_info, slug)
+
+
+@app.post("/api/admin/media", dependencies=[Depends(auth.require_admin_api)])
+async def admin_upload_media(request: Request, file: UploadFile = File(...)):
+    return await _save_upload(request, file, content_store.media_dir(), "media")
 
 
 @app.get("/api/admin/links", dependencies=[Depends(auth.require_admin_api)])

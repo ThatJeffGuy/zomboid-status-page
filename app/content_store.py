@@ -13,6 +13,10 @@ _KEYS = {
     "join_title": "join-title.md",
 }
 
+# Plain-text keys are exposed via get_raw/save_raw/revert (already
+# markdown-agnostic) but skipped by get_world_content()'s markdown
+# rendering -- they're short strings used directly in template text (e.g.
+# a heading), not blurbs meant to become HTML.
 _PLAIN_KEYS = {"join_title"}
 
 

@@ -77,15 +77,13 @@
       <p id="status-error" class="error" hidden></p>
     </div>
 
-    <div id="event-banner" class="event-announcement" hidden>
-      <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
-      <div class="event-banner-row" id="event-banner-next" hidden></div>
-    </div>
-
     <section class="card" id="player-map-card">
       <details class="collapsible collapsible-heading" id="map-collapse" open>
       <summary>Live Map</summary>
       <div class="collapsible-body">
+      <div id="event-banner" class="event-announcement event-banner-is-active" hidden>
+        <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
+      </div>
       <div class="status-row map-card-header">
         <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
         <ul class="player-bubbles" id="players-list"></ul>
@@ -137,15 +135,18 @@
           </div>
 
           <svg id="map-svg" viewBox="0 0 1400 1386" preserveAspectRatio="xMidYMid meet">
-            <image href="/static/map-overview.webp" x="0" y="0" width="1400" height="1386"></image>
-            <g id="map-offmap-zone" hidden>
-              <rect x="60" y="40" width="900" height="300" class="map-offmap-zone-rect"></rect>
-              <text x="80" y="72" class="map-offmap-zone-label">Off the map</text>
+            <image id="map-texture" href="{{ map_url or '/static/map-overview.webp' }}" x="0" y="0" width="1400" height="1386" preserveAspectRatio="none"></image>
+            <g id="map-offmap-zone">
+              <rect x="660" y="60" width="300" height="230" class="map-offmap-zone-rect"></rect>
+              <text x="676" y="90" class="map-offmap-zone-label">Off Map</text>
             </g>
             <g id="map-dots"></g>
             <g id="map-pings"></g>
           </svg>
         </div>
+      </div>
+      <div id="event-banner-next-box" class="event-announcement event-banner-below" hidden>
+        <div class="event-banner-row" id="event-banner-next" hidden></div>
       </div>
       </div>
       </details>
@@ -153,11 +154,30 @@
 
     <section class="card admin-editors">
       <details class="collapsible collapsible-heading">
+        <summary>Live Map Texture</summary>
+        <div class="collapsible-body">
+          <p class="hint">Swap the background image of this world's live map. The image has to show the <strong>same area</strong> as the default map (the whole map, edge to edge), or player dots will land in the wrong spots. Any resolution works &mdash; it's stretched to the default's 1400&times;1386 frame, so keep the same proportions. PNG/JPG/WebP, 40 MB max. Uploading takes effect immediately; <strong>Revert to default</strong> switches back to the built-in map.</p>
+          <div class="map-texture-editor">
+            <img id="map-texture-preview" class="map-texture-preview" alt="Current map texture">
+            <div class="map-texture-info">
+              <p id="map-texture-status" class="map-texture-status">Loading&hellip;</p>
+              <p id="map-texture-dims" class="hint" hidden></p>
+              <div class="button-row">
+                <input type="file" id="map-texture-file" accept="image/png,image/jpeg,image/webp" hidden>
+                <button type="button" id="map-texture-browse">Upload custom map&hellip;</button>
+                <button type="button" class="button-secondary" id="map-texture-revert" hidden>Revert to default</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="collapsible collapsible-heading">
         <summary>Site Content</summary>
         <div class="collapsible-body">
           <p class="hint">Edit the text shown on the public page. Saves are live &mdash; no rebuild needed.</p>
           <p class="hint">Wrap text in <code>&gt;&gt;</code> and <code>&lt;&lt;</code> to make it collapsible &mdash; its first line becomes the clickable header (even if it has its own punctuation, e.g. <code>Wow! 1.25x for 24 hours?</code>) and everything after the next line break becomes the hidden body. You can nest another <code>&gt;&gt;...&lt;&lt;</code> inside that body to make a sub-section, only reachable once the outer one's expanded. Start it with <code>&gt;&gt;+</code> instead of <code>&gt;&gt;</code> to have it open by default.</p>
-          <p class="hint">Images: <code>![description](https://example.com/pic.png)</code>, or put the file in <code>content-overrides/media/</code> on the server and use <code>![description](/media/pic.png)</code>. Big images shrink to fit the column. Code: wrap it in <code>```</code> lines.</p>
+          <p class="hint">Images: click <strong>Insert image&hellip;</strong> to upload one (PNG/JPG/WebP/GIF/SVG, 10 MB max) &mdash; it's added where your cursor is as <code>![description](/media/pic.png)</code>, and you can edit the description. Or link one from elsewhere with <code>![description](https://example.com/pic.png)</code>. Big images shrink to fit the column. Code: wrap it in <code>```</code> lines.</p>
           <div class="content-editor-select">
             <label for="content-editor-select">What to edit</label>
             <select id="content-editor-select">
@@ -165,7 +185,8 @@
               <option value="patchnotes">Server News</option>
               <option value="lore">The Story So Far</option>
               <option value="faq">Help / FAQ</option>
-              <option value="settings">Site title &amp; credit</option>
+              <option value="settings">Header (logo, title, subheader, flavor text)</option>
+              <option value="picker">Front page (Pick a World)</option>
               <option value="sections">Section display</option>
             </select>
           </div>
@@ -180,23 +201,53 @@
           <div id="content-editor-markdown">
             <p class="hint" id="content-editor-overridden" hidden>This is a live edit &mdash; it's no longer showing the bundled default.</p>
             <div class="content-editor-field">
-              <label for="content-editor-textarea">Markdown</label>
+              <div class="content-editor-md-head">
+                <label for="content-editor-textarea">Markdown</label>
+                <input type="file" id="content-editor-image-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" hidden>
+                <button type="button" class="button-secondary" id="content-editor-image-btn">Insert image&hellip;</button>
+              </div>
               <textarea id="content-editor-textarea" rows="10" maxlength="20000"></textarea>
             </div>
           </div>
 
           <div id="content-editor-settings" hidden>
             <div class="content-editor-field">
-              <label for="content-editor-title">Site title</label>
+              <label>Header logo (optional &mdash; a wide/horizontal image works best; replaces the main title)</label>
+              <div class="brand-logo-picker">
+                <img id="content-editor-logo-preview" class="brand-logo-preview" alt="" hidden>
+                <span id="content-editor-logo-none" class="worlds-row-nologo">No logo &mdash; the main title text is shown</span>
+                <input type="file" id="content-editor-logo-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" hidden>
+                <button type="button" class="button-secondary" id="content-editor-logo-browse">Browse&hellip;</button>
+                <button type="button" class="button-secondary" id="content-editor-logo-clear" hidden>Remove logo</button>
+              </div>
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-title">Main title (big bold line; also the logo's alt text)</label>
               <input type="text" id="content-editor-title" maxlength="200">
             </div>
             <div class="content-editor-field">
-              <label for="content-editor-subtitle-text">Credit text</label>
+              <label for="content-editor-tagline">Subheader (what the site is; leave blank to hide)</label>
+              <input type="text" id="content-editor-tagline" maxlength="200">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-subtitle-text">Flavor text (smallest line, e.g. "Made with love by&hellip;")</label>
               <input type="text" id="content-editor-subtitle-text" maxlength="200">
             </div>
             <div class="content-editor-field">
-              <label for="content-editor-subtitle-url">Credit link URL</label>
+              <label for="content-editor-subtitle-url">Flavor text link URL</label>
               <input type="text" id="content-editor-subtitle-url" maxlength="500">
+            </div>
+          </div>
+
+          <div id="content-editor-picker" hidden>
+            <p class="hint">The heading and the line under it on the front page where visitors pick a world. Leave a box blank to go back to the default wording.</p>
+            <div class="content-editor-field">
+              <label for="content-editor-picker-heading">Heading</label>
+              <input type="text" id="content-editor-picker-heading" maxlength="200" placeholder="Pick a world">
+            </div>
+            <div class="content-editor-field">
+              <label for="content-editor-picker-text">Text under the heading</label>
+              <input type="text" id="content-editor-picker-text" maxlength="300" placeholder="Choose a server to see its live map, player status, and patch notes.">
             </div>
           </div>
 
@@ -238,7 +289,7 @@
       <details class="collapsible collapsible-heading">
         <summary>Manage Worlds</summary>
         <div class="collapsible-body">
-          <p class="hint">These control the world-picker page and the Game Links bubbles. The "Live" world is the one this dashboard actually shows data for &mdash; it can't be removed or renamed (slug), but its display name and color are still editable. For a world icon, put an image (PNG/JPG/WebP/SVG) in <code>content-overrides/icons/</code> on the server and enter its filename in the logo box; leave it blank for no icon.</p>
+          <p class="hint">These control the world-picker page and the Game Links bubbles. The "Live" world is the one this dashboard actually shows data for &mdash; it can't be removed or renamed (slug), but its display name and color are still editable. For a world logo, click <strong>Browse&hellip;</strong> to upload an image (PNG/JPG/WebP/GIF/SVG, 10 MB max), then <strong>Save Worlds</strong>; the &#x2715; next to a logo removes it. The <strong>Subtext</strong> box sets the line under the world's name on the Pick a World page; leave it blank to use the default shown in grey.</p>
 
           <div id="worlds-list" class="worlds-list"></div>
 
@@ -263,7 +314,7 @@
       <details class="collapsible collapsible-heading">
         <summary>Manage Links</summary>
         <div class="collapsible-body">
-          <p class="hint">Add, remove, reorder, recolor, and regroup the buttons shown in the Community Links dropdown. Buttons with the same group name cluster together. For a button icon, put an image (PNG/JPG/WebP/SVG) in <code>content-overrides/icons/</code> on the server and enter its filename; leave it blank for a lettered circle.</p>
+          <p class="hint">Add, remove, reorder, recolor, and regroup the buttons shown in the Community Links dropdown. Buttons with the same group name cluster together. For a button icon, click <strong>Browse&hellip;</strong> to upload an image (PNG/JPG/WebP/GIF/SVG), then <strong>Save Links</strong>; with no icon the button shows a lettered circle.</p>
 
           <div id="links-list" class="worlds-list"></div>
 

@@ -35,6 +35,16 @@ server running in Docker.
 - A "Site Content" editor in the admin panel for the public page's title,
   credit line, and the three world-info blurbs (Server News / The Story So
   Far / Help &amp; FAQ) -- edits are live, no rebuild needed.
+- The site header (logo, title, subheader, flavor text), the front-page
+  "pick a world" heading and text, per-world subtext and logos, and the
+  community links (with icons) are all editable from the admin panel.
+- Image uploads from the admin panel (Browse... buttons): world and header
+  logos and link icons go to `content-overrides/icons/`, and images inserted
+  into the markdown content editor go to `content-overrides/media/`.
+- Per-world live-map texture: upload your own map art under "Live Map
+  Texture" (stored in `content-overrides/maps/`, 40 MB max). It is stretched
+  onto the map frame the player dots use, and falls back to the bundled
+  `static/map-overview.webp`.
 
 ## Optional integrations (not included -- bring your own scripts)
 
@@ -178,7 +188,11 @@ Put a reverse proxy in front of it for HTTPS once you have a domain --
 ### 5. Customize
 
 Log in with your admin password at `/login`, then use the "Site Content"
-card to set your site title, credit line, and the three world-info blurbs.
+card to set your site title, credit line, and the three world-info blurbs,
+and the header, front page, links, logos and live-map texture sections for
+the rest. Uploads are written by the container user, so the
+`content-overrides` directory (and its `icons/`, `media/` and `maps/`
+subfolders once created) must stay writable by it.
 Edit `app/static/style.css`/`app/templates/base.html` directly for anything
 not covered by the admin panel (community links, colors, etc).
 

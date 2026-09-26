@@ -126,6 +126,7 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
 }
 .topbar-links.topbar-links-stack {
+  /* Centered under the Community Links button rather than right-aligned. */
   left: 50%;
   right: auto;
   transform: translateX(-50%);
@@ -176,12 +177,22 @@ body {
 .link-group-buttons-stack .footer-button { justify-content: flex-start; }
 .world-button { border-radius: 999px; }
 .world-bubble-img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
-.world-picker-img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
-.world-coming-soon-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.world-picker-icon {
+  display: block;
+  flex-shrink: 0;
+  width: min(100%, var(--world-picker-logo-max), 48vh);
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+/* logos keep their own shape (square or wide banner) inside the same square space */
+.world-picker-img { object-fit: contain; }
+.world-coming-soon-img { width: 96px; height: 96px; object-fit: contain; }
 
-.brand-block { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .1rem; }
-.brand { color: var(--text); font-weight: 600; text-decoration: none; font-size: 1.1rem; }
-.brand-subtitle { color: var(--text-dim); text-decoration: none; font-size: .75rem; }
+.brand-block { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .15rem; max-width: 440px; }
+.brand { color: var(--text); font-weight: 800; text-decoration: none; font-size: 1.6rem; line-height: 1.15; letter-spacing: -.01em; }
+.brand-logo { display: block; width: auto; height: auto; max-height: 72px; max-width: min(400px, 100%); object-fit: contain; }
+.brand-tagline { color: var(--text); font-size: .9rem; line-height: 1.3; opacity: .85; }
+.brand-subtitle { color: var(--text-dim); text-decoration: none; font-size: .7rem; line-height: 1.3; font-style: italic; }
 .brand-subtitle:hover { color: var(--accent); text-decoration: underline; }
 .topbar nav {
   display: flex;
@@ -213,10 +224,12 @@ body {
 }
 .nav-login-error { color: var(--bad); font-size: .8rem; }
 .nav-admin-login > summary { display: flex; list-style: none; cursor: pointer; }
+/* Deliberately low-key: a little dimmer than the other buttons until hovered. */
 .footer-button.nav-admin-item { color: #b4bbc7; }
 .footer-button.nav-admin-item:hover { color: var(--text); }
 .link-group-buttons-stack .footer-button.nav-admin-item { justify-content: center; }
 .nav-admin-login > summary::-webkit-details-marker { display: none; }
+/* width:0 + min-width:100% -- fill the dropdown without widening it. */
 .nav-admin-login .nav-login-form { margin-top: .4rem; width: 0; min-width: 100%; }
 .nav-admin-login .nav-login-form input[type="password"] { flex: 1 1 6rem; min-width: 0; width: auto; }
 
@@ -243,20 +256,22 @@ main { max-width: 1800px; margin: 0 auto; padding: 1.5rem 2rem; }
 .admin-world-switcher-link:hover { color: var(--text); border-color: var(--accent); }
 .admin-world-switcher-link.active { color: var(--text); border-color: var(--accent); background: rgba(90, 169, 230, .12); font-weight: 600; }
 
-.world-picker { max-width: 720px; margin: 3.5rem auto; text-align: center; }
-.world-picker-heading { font-size: 1.6rem; }
-.world-picker-hint { margin-bottom: 2rem; }
+.world-picker { --world-picker-logo-max: 400px; max-width: 880px; margin: clamp(1rem, 4vh, 3.5rem) auto; text-align: center; }
+.world-picker-heading { font-size: 1.6rem; margin-top: 0; }
+.world-picker .world-picker-hint { margin-bottom: clamp(1rem, 3vh, 2rem); }
 .world-picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: clamp(.75rem, 2vw, 1.25rem);
 }
 .world-picker-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: .5rem;
-  padding: 2rem 1.25rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: clamp(.5rem, 1.5vh, .75rem) clamp(.5rem, 1.5vw, .75rem) clamp(.75rem, 2vh, 1rem);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -267,6 +282,12 @@ main { max-width: 1800px; margin: 0 auto; padding: 1.5rem 2rem; }
 .world-picker-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .world-picker-name { font-size: 1.1rem; font-weight: 700; }
 .world-picker-desc { color: var(--text-dim); font-size: .8rem; }
+@media (max-width: 480px) {
+  .world-picker { margin: .5rem auto; }
+  .world-picker-heading { font-size: 1.35rem; margin-bottom: .25rem; }
+  .world-picker-name { font-size: 1rem; line-height: 1.25; }
+  .world-picker-desc { font-size: .75rem; line-height: 1.3; }
+}
 
 .world-coming-soon { display: flex; flex-direction: column; align-items: center; gap: .6rem; text-align: center; padding: 2rem 1.5rem; }
 .world-coming-soon h1 { margin: 0; }
@@ -281,6 +302,8 @@ main { max-width: 1800px; margin: 0 auto; padding: 1.5rem 2rem; }
 @media (max-width: 900px) {
   .layout-3col { grid-template-columns: 1fr; }
 }
+/* Grid items default to min-width:auto and grow to fit wide content (images,
+   code); let them shrink so content fits the column instead. */
 .layout-3col > .col { min-width: 0; }
 
 .card {
@@ -423,6 +446,7 @@ button.player-ping-btn.player-ping-btn-miss { animation: player-ping-miss-shake 
 }
 .active-event-announcement strong { color: var(--bad); }
 .event-banner-row + .event-banner-row { margin-top: .2rem; }
+.event-announcement.event-banner-below { margin: .5rem 0 0; }
 .event-announcement.event-banner-is-active {
   background: rgba(224, 85, 79, .08);
   border-color: rgba(224, 85, 79, .35);
@@ -496,7 +520,13 @@ form label { margin-top: .75rem; }
 }
 .worlds-row-label { flex: 1 1 160px; min-width: 0; }
 .worlds-row-color { flex: 0 0 auto; width: auto; }
-.worlds-row-image { flex: 1 1 160px; min-width: 0; }
+#worlds-list .worlds-row { flex-wrap: wrap; }
+.worlds-row-desc { flex: 2 1 220px; min-width: 0; }
+.worlds-row-image { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; }
+.worlds-row-thumb { width: 2rem; height: 2rem; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); }
+.brand-logo-picker { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.brand-logo-preview { max-height: 48px; max-width: 240px; width: auto; height: auto; padding: .25rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.worlds-row-nologo { color: var(--text-dim); font-size: .8rem; }
 .worlds-row-slug { flex: 1 1 140px; min-width: 0; color: var(--text-dim); font-size: .8rem; overflow-wrap: anywhere; }
 .worlds-row-badge {
   display: inline-block;
@@ -516,6 +546,13 @@ form label { margin-top: .75rem; }
 .content-editor-field input[type="text"] { width: 100%; box-sizing: border-box; }
 #content-editor-overridden { color: var(--accent); margin-bottom: .5rem; }
 .content-editor-actions { margin-top: .75rem; }
+.map-texture-editor { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.map-texture-preview { width: 220px; max-width: 100%; aspect-ratio: 1400 / 1386; object-fit: fill; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.map-texture-info { flex: 1 1 220px; min-width: 0; }
+.map-texture-status { margin-top: 0; overflow-wrap: anywhere; }
+.map-texture-dims-warn { color: var(--warn); }
+.content-editor-md-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; }
+.content-editor-md-head button { padding: .3rem .7rem; font-size: .85rem; }
 
 #connect-ip, #connect-port, #connect-password { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
@@ -665,6 +702,7 @@ form label { margin-top: .75rem; }
   transition: transform .2s ease-in-out;
 }
 .collapsible[open] > summary::before { transform: rotate(90deg); }
+/* "Always shown" sections: open, no arrow, not clickable. */
 .collapsible.collapsible-always > summary { pointer-events: none; cursor: default; }
 .collapsible.collapsible-always > summary::before { content: none; margin: 0; }
 details[open] > summary .expand-hint { display: none; }
@@ -1013,7 +1051,8 @@ pre + .collapsible { margin-top: 1rem; }
 .map-dot-offmap:hover { fill: var(--map-highlight); }
 
 .map-offmap-zone-rect {
-  fill: rgba(224, 166, 79, .05);
+  /* dark backdrop so the box and dots stay readable over busy map art */
+  fill: rgba(8, 10, 9, .62);
   stroke: var(--warn);
   stroke-width: 2;
   stroke-dasharray: 8 6;
@@ -1024,7 +1063,9 @@ pre + .collapsible { margin-top: 1rem; }
   font-size: 20px;
   font-weight: 600;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  opacity: .8;
+  stroke: rgba(0, 0, 0, .7);
+  stroke-width: 3px;
+  paint-order: stroke;
 }
 
 @keyframes map-dot-click-pulse {

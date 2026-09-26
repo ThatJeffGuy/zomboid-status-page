@@ -94,12 +94,10 @@
       <p id="status-error" class="error" hidden></p>
     </div>
 
-    <div id="event-banner" class="event-announcement" hidden>
-      <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
-      <div class="event-banner-row" id="event-banner-next" hidden></div>
-    </div>
-
     <section class="card" id="player-map-card">
+      <div id="event-banner" class="event-announcement event-banner-is-active" hidden>
+        <div class="event-banner-row event-banner-active" id="event-banner-active" hidden></div>
+      </div>
       <div class="status-row map-card-header">
         <span id="event-active-badge" class="badge event-active-badge" hidden>Event Active: <span id="event-active-name"></span></span>
         <ul class="player-bubbles" id="players-list"></ul>
@@ -151,15 +149,18 @@
           </div>
 
           <svg id="map-svg" viewBox="0 0 1400 1386" preserveAspectRatio="xMidYMid meet">
-            <image href="/static/map-overview.webp" x="0" y="0" width="1400" height="1386"></image>
-            <g id="map-offmap-zone" hidden>
-              <rect x="60" y="40" width="900" height="300" class="map-offmap-zone-rect"></rect>
-              <text x="80" y="72" class="map-offmap-zone-label">Off the map</text>
+            <image id="map-texture" href="{{ map_url or '/static/map-overview.webp' }}" x="0" y="0" width="1400" height="1386" preserveAspectRatio="none"></image>
+            <g id="map-offmap-zone">
+              <rect x="660" y="60" width="300" height="230" class="map-offmap-zone-rect"></rect>
+              <text x="676" y="90" class="map-offmap-zone-label">Off Map</text>
             </g>
             <g id="map-dots"></g>
             <g id="map-pings"></g>
           </svg>
         </div>
+      </div>
+      <div id="event-banner-next-box" class="event-announcement event-banner-below" hidden>
+        <div class="event-banner-row" id="event-banner-next" hidden></div>
       </div>
     </section>
   </div>

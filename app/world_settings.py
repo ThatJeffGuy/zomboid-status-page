@@ -5,13 +5,17 @@ import re
 _WORLDS_FILENAME = "worlds.json"
 
 DEFAULT_WORLDS = [
-    {"slug": "main", "label": "My World", "color": "good", "primary": True, "image": ""},
+    {"slug": "world-1", "label": "My World", "color": "good", "primary": True, "image": ""},
 ]
 
 COLOR_CHOICES = {"good", "accent", "purple", "warn", "bad"}
 
 _SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 _IMAGE_RE = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
+
+# Subtext under the name on the world-picker card; blank falls back to the
+# built-in default (see select-world.html).
+MAX_DESCRIPTION_CHARS = 120
 
 
 def _path() -> str:
@@ -43,6 +47,9 @@ def _valid(worlds) -> bool:
             return False
         image = w.get("image", "")
         if image and not (isinstance(image, str) and _IMAGE_RE.match(image)):
+            return False
+        description = w.get("description", "")
+        if not isinstance(description, str) or len(description) > MAX_DESCRIPTION_CHARS:
             return False
         if w.get("primary"):
             primaries += 1
@@ -90,7 +97,10 @@ def save_worlds(worlds: list[dict]) -> list[dict]:
         image = (w.get("image") or "").strip()
         if image and not _IMAGE_RE.match(image):
             raise ValueError(f"invalid image filename: {image!r} (letters/numbers/./-/_ only, no slashes)")
-        cleaned.append({"slug": slug, "label": label, "color": color, "primary": bool(w.get("primary")), "image": image})
+        description = " ".join((w.get("description") or "").split())
+        if len(description) > MAX_DESCRIPTION_CHARS:
+            raise ValueError(f"subtext for {label!r} is too long ({MAX_DESCRIPTION_CHARS} char max)")
+        cleaned.append({"slug": slug, "label": label, "color": color, "primary": bool(w.get("primary")), "image": image, "description": description})
 
     if not cleaned:
         raise ValueError("at least one world is required")

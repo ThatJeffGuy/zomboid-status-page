@@ -13,7 +13,16 @@
   <header class="topbar">
     <div class="topbar-grid">
       <div class="brand-block">
-        <a class="brand" href="/">{{ site_settings.brand_title }}</a>
+        <a class="brand" href="/">
+          {%- if site_settings.brand_logo -%}
+          <img class="brand-logo" src="/icons/{{ site_settings.brand_logo }}" alt="{{ site_settings.brand_title }}">
+          {%- else -%}
+          {{ site_settings.brand_title }}
+          {%- endif -%}
+        </a>
+        {% if site_settings.brand_tagline %}
+        <span class="brand-tagline">{{ site_settings.brand_tagline }}</span>
+        {% endif %}
         <a class="brand-subtitle" href="{{ site_settings.brand_subtitle_url }}" target="_blank" rel="noopener">{{ site_settings.brand_subtitle_text }}</a>
       </div>
       <div class="topbar-center">
@@ -22,9 +31,6 @@
           <div class="topbar-group-buttons">
             {% for w in worlds %}
             <a class="footer-button world-button" href="/world/{{ w.slug }}">
-              {% if w.image %}
-              <img class="footer-button-icon world-icon-img" src="/icons/{{ w.image }}" alt="">
-              {% endif %}
               {{ w.label }}
             </a>
             {% endfor %}
