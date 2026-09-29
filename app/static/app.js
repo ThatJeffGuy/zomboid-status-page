@@ -85,8 +85,8 @@
       }
     }
 
-    // The running event (red, pulsing) sits above the map and only shows while
-    // one is active; the next scheduled event sits below the map.
+    // Both sit above the map (the user, 2026-09-29): the running event (red, pulsing) while one is
+    // active, otherwise the next scheduled event.
     lastActiveEvent = activeEvent || null;
     var eventBanner = document.getElementById("event-banner");
     if (eventBanner) {
@@ -104,7 +104,8 @@
       fillEventBannerRow(document.getElementById("event-banner-next"), "Next Event: ",
         nextEventName,
         [nextEventFlavor, nextEventStartDisplaySimple || nextEventStartDisplay]);
-      nextBox.hidden = !nextEventName;
+      // above the map, and only while nothing is running: an active event shows the red banner alone
+      nextBox.hidden = !nextEventName || !!activeEvent;
     }
 
     populateNextEventDisplay("next-event-info", "next-event-name-simple", "next-event-when", "next-event-flavor-simple", nextEventName, nextEventFlavor, nextEventStartDisplay, nextEventStartDisplaySimple);

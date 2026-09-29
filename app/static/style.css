@@ -1180,3 +1180,6 @@ pre + .collapsible { margin-top: 1rem; }
 
 /* player bubbles and event badge sit under the map (the user, 2026-09-29) */
 .map-card-footer { margin-top: .6rem; margin-bottom: 0; }
+
+/* next-event box above the map (was below it) */
+.event-announcement.event-banner-top { margin: 0 0 .5rem; }
