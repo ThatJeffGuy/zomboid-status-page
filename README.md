@@ -12,7 +12,11 @@ server admins.
 - Optional safe zone overlay on the second world's map: if the game server writes
   `Zomboid/Lua/PE/safezone.json` (see `PE_SafePath.lua` in
   [zomboid-scripts](https://github.com/ThatJeffGuy/zomboid-scripts)), the map draws the
-  standing defense line round each camp and a countdown to its collapse under the Off Map box.
+  standing defense line round each camp, and the red event banner above the map carries the
+  line's message and countdown whenever no storm is running.
+- Players who are still connecting (or have no position yet this session) sit in the Off Map box.
+- Player name tags are larger, centred above their dot and drawn on top; the player bubbles row
+  sits under the map.
 - Community links can be limited to specific worlds (Admin > Manage Links > "Shown on";
   none ticked = every world).
 - The live map opens one zoom step in and never auto-zooms; zoom and pan are not remembered

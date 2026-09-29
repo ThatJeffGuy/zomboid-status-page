@@ -55,6 +55,24 @@
     container.hidden = false;
   }
 
+  // The red storm banner above the map doubles as the Front Lines banner (the user, 2026-09-29): while
+  // no storm is running it carries the shrinking safe zone's message and countdown (drawSafeZone sets
+  // frontLinesMsg from the map poll). A running storm always wins.
+  var lastActiveEvent = null;
+  var frontLinesMsg = null;
+  function showFrontLinesBanner() {
+    var eventBanner = document.getElementById("event-banner");
+    if (!eventBanner || lastActiveEvent) return;
+    var row = document.getElementById("event-banner-active");
+    if (frontLinesMsg) {
+      fillEventBannerRow(row, "", frontLinesMsg, []);
+      eventBanner.hidden = false;
+    } else {
+      fillEventBannerRow(row, "", null, []);
+      eventBanner.hidden = true;
+    }
+  }
+
   function renderEvent(activeEvent, nextEventName, nextEventFlavor, nextEventStartDisplay, nextEventStartDisplaySimple, nextEventOverriddenEarly) {
     var activeBadge = document.getElementById("event-active-badge");
     if (activeBadge) {
@@ -69,12 +87,17 @@
 
     // The running event (red, pulsing) sits above the map and only shows while
     // one is active; the next scheduled event sits below the map.
+    lastActiveEvent = activeEvent || null;
     var eventBanner = document.getElementById("event-banner");
     if (eventBanner) {
-      fillEventBannerRow(document.getElementById("event-banner-active"), "Event Active: ",
-        activeEvent && activeEvent.name,
-        [activeEvent && activeEvent.flavor, activeEvent && activeEvent.seconds_left ? "ends in " + fmtDuration(activeEvent.seconds_left) : null]);
-      eventBanner.hidden = !activeEvent;
+      if (activeEvent) {
+        fillEventBannerRow(document.getElementById("event-banner-active"), "Event Active: ",
+          activeEvent.name,
+          [activeEvent.flavor, activeEvent.seconds_left ? "ends in " + fmtDuration(activeEvent.seconds_left) : null]);
+        eventBanner.hidden = false;
+      } else {
+        showFrontLinesBanner();
+      }
     }
     var nextBox = document.getElementById("event-banner-next-box");
     if (nextBox) {
@@ -451,6 +474,7 @@
       return;
     }
 
+    var labelled = [];
     points.forEach(function (p) {
       var circle = svgEl("circle", {
         cx: p.px, cy: p.py, r: 8,
@@ -463,19 +487,26 @@
         : Math.round(p.seconds_ago / 60) + "m ago";
       title.textContent = p.onMap
         ? (p.name + " -- last seen " + agoText)
-        : (p.name + " -- off the depicted map area (real coords " + Math.round(p.x) + ", " + Math.round(p.y) + ") -- last update " + agoText);
+        : (p.x == null
+          ? (p.name + (p.connecting ? " -- connecting..." : " -- online, no position yet"))
+          : (p.name + " -- off the depicted map area (real coords " + Math.round(p.x) + ", " + Math.round(p.y) + ") -- last update " + agoText));
       circle.appendChild(title);
       dots.appendChild(circle);
+      labelled.push(p);
+    });
 
-      var label = svgEl("text", { x: p.px + 12, y: p.py + 5, class: "map-dot-label" });
+    // Name tags (the user, 2026-09-29): bigger, centred above each dot, and drawn after every dot so
+    // no dot sits on top of someone's name.
+    labelled.forEach(function (p) {
+      var label = svgEl("text", { x: p.px, y: p.py - 14, "text-anchor": "middle", class: "map-dot-label" });
       label.textContent = p.name;
       dots.appendChild(label);
 
       var bbox = label.getBBox();
       var bg = svgEl("rect", {
-        x: bbox.x - 3, y: bbox.y - 1.5,
-        width: bbox.width + 6, height: bbox.height + 3,
-        rx: 3, class: "map-dot-label-bg",
+        x: bbox.x - 5, y: bbox.y - 2,
+        width: bbox.width + 10, height: bbox.height + 4,
+        rx: 5, class: "map-dot-label-bg",
       });
       dots.insertBefore(bg, label);
     });
@@ -764,7 +795,7 @@
     var layer = document.getElementById("map-safezone");
     if (!layer) return;
     while (layer.firstChild) layer.removeChild(layer.firstChild);
-    if (!zone || !zone.camps || !zone.line) return;
+    if (!zone || !zone.camps || !zone.line) { frontLinesMsg = null; showFrontLinesBanner(); return; }
     var NS = "http://www.w3.org/2000/svg";
     function circle(c, radius, cls) {
       var el = document.createElementNS(NS, "circle");
@@ -789,30 +820,8 @@
     });
     var msg = zone.msg || "The Front Lines are not holding! Retreat in {timer}";
     var label = msg.replace("{timer}", zone.falls_at ? safeZoneCountdown(zone.falls_at - Math.floor(Date.now() / 1000)) : "");
-    // under the Off Map box, same width, wrapped onto as many lines as it needs (two, usually)
-    var boxX = OFF_MAP_ZONE.x, boxW = OFF_MAP_ZONE.w;
-    var text = document.createElementNS(NS, "text");
-    text.setAttribute("class", "map-safezone-label");
-    layer.appendChild(text);
-    var lineH = 24, y = OFF_MAP_ZONE.y + OFF_MAP_ZONE.h + 28;
-    var tspan = null, words = label.split(" ");
-    function newLine() {
-      tspan = document.createElementNS(NS, "tspan");
-      tspan.setAttribute("x", boxX + 4);
-      tspan.setAttribute("y", y);
-      y += lineH;
-      text.appendChild(tspan);
-    }
-    newLine();
-    words.forEach(function (w) {
-      var before = tspan.textContent;
-      tspan.textContent = before ? before + " " + w : w;
-      if (before && tspan.getComputedTextLength && tspan.getComputedTextLength() > boxW - 8) {
-        tspan.textContent = before;
-        newLine();
-        tspan.textContent = w;
-      }
-    });
+    frontLinesMsg = label;
+    showFrontLinesBanner();
   }
 
   function renderMapPositions(data) {
@@ -836,6 +845,7 @@
         name: p.name,
         seconds_ago: p.seconds_ago,
         onMap: onMap,
+        connecting: !!p.connecting,
         x: p.x,
         y: p.y,
         px: pos.px,

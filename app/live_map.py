@@ -16,6 +16,38 @@ _CMD_LINE_RE = re.compile(
 
 _TAIL_BYTES = 512 * 1024
 
+# The user log's join lines. While someone is connecting (joined, not yet "fully connected") or before
+# their first position of this session, their dot goes in the Off Map box instead of wherever they
+# stood last time (the user, 2026-09-29).
+_USER_LINE_RE = re.compile(
+    r'^\[(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.\d+\]\s+\d+(?:\([^)]*\))?\s+'
+    r'"([^"]*)"\s+(attempting to join|fully connected \((-?\d+),(-?\d+),(-?\d+)\))'
+)
+
+
+def _log_ts(dd, mm, yy, hh, mi, ss) -> float:
+    return datetime(2000 + int(yy), int(mm), int(dd), int(hh), int(mi), int(ss), tzinfo=_LOG_TZ).timestamp()
+
+
+def _join_states(logs_dir: str | None) -> dict[str, dict]:
+    """name -> {"join": ts of the last join attempt, "conn": ts of the last full connect, "x", "y"}."""
+    states: dict[str, dict] = {}
+    path = game_logs.find_current("user", logs_dir)
+    if path is None:
+        return states
+    for line in _tail_lines(path, _TAIL_BYTES):
+        m = _USER_LINE_RE.match(line.rstrip("\n"))
+        if not m:
+            continue
+        dd, mm, yy, hh, mi, ss, name, what, x, y, _z = m.groups()
+        st = states.setdefault(name, {})
+        ts = _log_ts(dd, mm, yy, hh, mi, ss)
+        if what.startswith("attempting"):
+            st["join"] = ts
+        else:
+            st["conn"], st["x"], st["y"] = ts, int(x), int(y)
+    return states
+
 
 def _tail_lines(path: str, max_bytes: int) -> list[str]:
     try:
@@ -83,6 +115,17 @@ def read_positions(online_names: set[str], logs_dir: str | None = None, safezone
             ts = datetime(year, int(mm), int(dd), int(hh), int(mi), int(ss), tzinfo=_LOG_TZ).timestamp()
             latest[name] = (x, y, ts)
 
+    # connecting, or no position yet this session: the Off Map box
+    joins = _join_states(logs_dir)
+    connecting: set[str] = set()
+    for name in online_names:
+        st = joins.get(name, {})
+        conn, join = st.get("conn"), st.get("join")
+        if join is not None and (conn is None or join > conn):
+            connecting.add(name)
+            latest.pop(name, None)
+        elif conn is not None and (name not in latest or latest[name][2] < conn):
+            latest[name] = (st["x"], st["y"], conn)        # the spot they spawned in at, until they move
     now = time.time()
     players = [
         {
@@ -92,6 +135,10 @@ def read_positions(online_names: set[str], logs_dir: str | None = None, safezone
         }
         for name, (x, y, ts) in latest.items()
     ]
+    for name in sorted(online_names):
+        if name not in latest:
+            players.append({"name": name, "x": None, "y": None, "seconds_ago": None, "on_map": False,
+                            "connecting": name in connecting})
     return {
         "origin_x": MAP_ORIGIN_X,
         "origin_y": MAP_ORIGIN_Y,

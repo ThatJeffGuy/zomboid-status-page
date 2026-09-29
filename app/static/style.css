@@ -1106,15 +1106,17 @@ pre + .collapsible { margin-top: 1rem; }
 .map-dot-label {
   fill: #fff;
   stroke: #0b1420;
-  stroke-width: 1;
+  stroke-width: 1.5;
   paint-order: stroke;
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  pointer-events: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 .map-dot-label-bg {
   fill: #0b1420;
-  fill-opacity: .8;
+  fill-opacity: .85;
+  pointer-events: none;
 }
 
 #chat-panel {
@@ -1175,3 +1177,6 @@ pre + .collapsible { margin-top: 1rem; }
 .links-row-worlds { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .85rem; opacity: .9; }
 .links-row-world { display: inline-flex; gap: .25rem; align-items: center; white-space: nowrap; }
 .links-row-worlds-all { opacity: .7; }
+
+/* player bubbles and event badge sit under the map (the user, 2026-09-29) */
+.map-card-footer { margin-top: .6rem; margin-bottom: 0; }
