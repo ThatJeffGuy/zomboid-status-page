@@ -128,7 +128,9 @@ def _tpl(name: str, request: Request, status_code: int = 200, **context):
     context.setdefault("csrf_token", "")
     context.setdefault("is_admin", auth.is_authenticated(request))
     context.setdefault("worlds", world_settings.get_worlds())
-    context.setdefault("community_links", link_settings.grouped(link_settings.get_links()))
+    world = context.get("world")
+    slug = world.get("slug") if isinstance(world, dict) else None
+    context.setdefault("community_links", link_settings.grouped(link_settings.for_world(link_settings.get_links(), slug)))
     return templates.TemplateResponse(
         name, {"request": request, **context}, status_code=status_code
     )
@@ -196,7 +198,7 @@ async def api_map_positions(slug: str):
     backend = _backend_or_404(slug)
     s = await status_caches[slug].get()
     online = set(s.player_names) if s.online else set()
-    return await asyncio.to_thread(live_map.read_positions, online, backend.logs_dir)
+    return await asyncio.to_thread(live_map.read_positions, online, backend.logs_dir, backend.safezone_file)
 
 
 @app.get("/login")
@@ -613,6 +615,7 @@ class LinkEntry(BaseModel):
     color: str
     group: str
     icon: str = ""
+    worlds: list[str] = []
 
 
 class LinksBody(BaseModel):

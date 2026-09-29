@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -46,7 +47,24 @@ def _in_world_bounds(x: int, y: int) -> bool:
     return _WORLD_X_MIN <= x <= _WORLD_X_MAX and _WORLD_Y_MIN <= y <= _WORLD_Y_MAX
 
 
-def read_positions(online_names: set[str], logs_dir: str | None = None) -> dict:
+_SAFEZONE_MAX_AGE = 3 * 86400   # the server pauses while empty, so the file can be old; falls_at is absolute
+
+
+def read_safe_zone(path: str | None) -> dict | None:
+    """The shrinking safe zone written by the game server (PE_SafePath.lua), if fresh."""
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or time.time() - float(data.get("updated") or 0) > _SAFEZONE_MAX_AGE:
+        return None
+    return data
+
+
+def read_positions(online_names: set[str], logs_dir: str | None = None, safezone_file: str | None = None) -> dict:
     latest: dict[str, tuple[int, int, float]] = {}
 
     path = game_logs.find_current("cmd", logs_dir)
@@ -81,4 +99,5 @@ def read_positions(online_names: set[str], logs_dir: str | None = None) -> dict:
         "image_w": MAP_IMAGE_W,
         "image_h": MAP_IMAGE_H,
         "players": players,
+        "safe_zone": read_safe_zone(safezone_file),
     }

@@ -7,6 +7,8 @@ services:
       - /opt/app/zomboid-2/config/storms:/data/second-pz-storms:ro
       - /opt/app/zomboid-2/config/db:/data/second-pz-db:ro
       - /opt/app/zomboid-2/config/Logs:/data/second-pz-logs:ro
+      # optional: the Front Lines safe zone file from zomboid-scripts' PE_SafePath.lua (map rings + timer)
+      - /opt/app/zomboid-2/config/Lua/PE:/data/second-pe:ro
     environment:
       - SECOND_RCON_HOST=127.0.0.1
       - SECOND_RCON_PORT=27016
@@ -17,3 +19,4 @@ services:
       - SECOND_PLAYER_DB=/data/second-pz-db/YourSecondServerName.db
       - SECOND_CARETAKING_LOG=/data/second-pz-caretaking.log
       - SECOND_GAME_CONTAINER=zomboid-server-2
+      - SECOND_SAFEZONE_FILE=/data/second-pe/safezone.json

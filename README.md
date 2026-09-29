@@ -9,6 +9,14 @@ server admins.
 - Interactive live map: uses the server's own interactivity logs to plot
   approximate player positions. A player who's off the depicted map area
   gets placed in an unused corner of the image rather than dropped.
+- Optional safe zone overlay on the second world's map: if the game server writes
+  `Zomboid/Lua/PE/safezone.json` (see `PE_SafePath.lua` in
+  [zomboid-scripts](https://github.com/ThatJeffGuy/zomboid-scripts)), the map draws the
+  standing defense line round each camp and a countdown to its collapse under the Off Map box.
+- Community links can be limited to specific worlds (Admin > Manage Links > "Shown on";
+  none ticked = every world).
+- The live map opens one zoom step in and never auto-zooms; zoom and pan are not remembered
+  across reloads.
 - Admin panel overrides for the maintenance automation -- save, restart, and
   run a mod-update check manually, on top of whatever's scheduled.
 - Map is moderator-interactive: right-click a player to kick, ban,

@@ -12,6 +12,7 @@ COLOR_CHOICES = {"good", "accent", "purple", "warn", "bad"}
 
 _URL_RE = re.compile(r"^https?://\S+$")
 _ICON_RE = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
+_SLUG_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 
 
 def _path() -> str:
@@ -38,6 +39,9 @@ def _valid_entry(e) -> bool:
     icon = e.get("icon", "")
     if icon and not (isinstance(icon, str) and _ICON_RE.match(icon)):
         return False
+    worlds = e.get("worlds", [])
+    if not isinstance(worlds, list) or not all(isinstance(w, str) and _SLUG_RE.match(w) for w in worlds):
+        return False
     return True
 
 
@@ -54,6 +58,12 @@ def get_links() -> list[dict]:
     if not _valid(saved):
         return [dict(e) for e in DEFAULT_LINKS]
     return saved
+
+
+def for_world(items: list[dict], slug: str | None) -> list[dict]:
+    """The links shown on one world's pages. A link with no `worlds` list shows everywhere; one with
+    a list shows only on those worlds' pages (and not on world-less pages like Pick a World)."""
+    return [e for e in items if not e.get("worlds") or (slug is not None and slug in e["worlds"])]
 
 
 def grouped(items: list[dict]) -> list[dict]:
@@ -91,7 +101,11 @@ def save_links(items: list[dict]) -> list[dict]:
         icon = (e.get("icon") or "").strip()
         if icon and not _ICON_RE.match(icon):
             raise ValueError(f"invalid icon filename: {icon!r} (letters/numbers/./-/_ only, no slashes)")
-        cleaned.append({"label": label, "url": url, "color": color, "group": group, "icon": icon})
+        worlds = e.get("worlds") or []
+        if not isinstance(worlds, list) or not all(isinstance(w, str) and _SLUG_RE.match(w) for w in worlds):
+            raise ValueError(f"invalid world list for {label!r}")
+        worlds = sorted(set(worlds))
+        cleaned.append({"label": label, "url": url, "color": color, "group": group, "icon": icon, "worlds": worlds})
 
     path = _path()
     os.makedirs(os.path.dirname(path), exist_ok=True)

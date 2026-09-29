@@ -15,6 +15,7 @@ class WorldBackend:
     caretaking_log: str
     container: str
     content_subdir: str | None
+    safezone_file: str | None = None
 
 
 def _main() -> WorldBackend:
@@ -49,6 +50,7 @@ def _second() -> WorldBackend | None:
         caretaking_log=os.environ.get("SECOND_CARETAKING_LOG", "/data/second-pz-caretaking.log"),
         container=os.environ.get("SECOND_GAME_CONTAINER", "zomboid-server-2"),
         content_subdir="second",
+        safezone_file=os.environ.get("SECOND_SAFEZONE_FILE", "/data/second-pe/safezone.json"),
     )
 
 

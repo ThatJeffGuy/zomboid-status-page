@@ -230,7 +230,14 @@
   // map's corner logo and the east river (must match the <rect> in
   // index.html/admin.html). Players whose coordinates fall outside the map
   // (e.g. RV interiors, placed ~22,000+ tiles east) are parked here.
+  // x is per world: the template sets data-offmap-x on #map-view (Evolved's
+  // art has its river further west, so its box sits 100px left).
   var OFF_MAP_ZONE = { x: 660, y: 60, w: 300, h: 230 };
+  (function () {
+    var view = document.getElementById("map-view");
+    var x = view && parseFloat(view.getAttribute("data-offmap-x"));
+    if (x >= 0) OFF_MAP_ZONE.x = x;
+  })();
   var OFF_MAP_LABEL_H = 40;
   var OFF_MAP_COLS = 4;
 
@@ -743,6 +750,71 @@
     });
   }
 
+  // Evolved's shrinking safe zone (the game server writes it; see PE_SafePath.lua): the standing
+  // defense line round each camp, the next line in, and when the standing one falls.
+  function safeZoneCountdown(seconds) {
+    if (seconds <= 0) return "any moment";
+    var d = Math.floor(seconds / 86400), h = Math.floor((seconds % 86400) / 3600), m = Math.floor((seconds % 3600) / 60);
+    if (d > 0) return d + "d " + h + "h";
+    if (h > 0) return h + "h " + m + "m";
+    return m + "m";
+  }
+
+  function drawSafeZone(zone, originX, originY, scale, fullW, fullH) {
+    var layer = document.getElementById("map-safezone");
+    if (!layer) return;
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    if (!zone || !zone.camps || !zone.line) return;
+    var NS = "http://www.w3.org/2000/svg";
+    function circle(c, radius, cls) {
+      var el = document.createElementNS(NS, "circle");
+      el.setAttribute("cx", (c.x - originX) / scale);
+      el.setAttribute("cy", (c.y - originY) / scale);
+      el.setAttribute("r", radius / scale);
+      el.setAttribute("class", cls);
+      layer.appendChild(el);
+    }
+    zone.camps.forEach(function (c) {
+      circle(c, zone.line, "map-safezone-line");
+      if (zone.next_line) circle(c, zone.next_line, "map-safezone-next");
+      var dot = document.createElementNS(NS, "circle");
+      dot.setAttribute("cx", (c.x - originX) / scale);
+      dot.setAttribute("cy", (c.y - originY) / scale);
+      dot.setAttribute("r", 5);
+      dot.setAttribute("class", "map-safezone-camp");
+      var title = document.createElementNS(NS, "title");
+      title.textContent = c.name;
+      dot.appendChild(title);
+      layer.appendChild(dot);
+    });
+    var msg = zone.msg || "The Front Lines are not holding! Retreat in {timer}";
+    var label = msg.replace("{timer}", zone.falls_at ? safeZoneCountdown(zone.falls_at - Math.floor(Date.now() / 1000)) : "");
+    // under the Off Map box, same width, wrapped onto as many lines as it needs (two, usually)
+    var boxX = OFF_MAP_ZONE.x, boxW = OFF_MAP_ZONE.w;
+    var text = document.createElementNS(NS, "text");
+    text.setAttribute("class", "map-safezone-label");
+    layer.appendChild(text);
+    var lineH = 24, y = OFF_MAP_ZONE.y + OFF_MAP_ZONE.h + 28;
+    var tspan = null, words = label.split(" ");
+    function newLine() {
+      tspan = document.createElementNS(NS, "tspan");
+      tspan.setAttribute("x", boxX + 4);
+      tspan.setAttribute("y", y);
+      y += lineH;
+      text.appendChild(tspan);
+    }
+    newLine();
+    words.forEach(function (w) {
+      var before = tspan.textContent;
+      tspan.textContent = before ? before + " " + w : w;
+      if (before && tspan.getComputedTextLength && tspan.getComputedTextLength() > boxW - 8) {
+        tspan.textContent = before;
+        newLine();
+        tspan.textContent = w;
+      }
+    });
+  }
+
   function renderMapPositions(data) {
     var svg = document.getElementById("map-svg");
     if (!svg || !document.getElementById("map-dots")) return;
@@ -771,6 +843,8 @@
       };
     });
 
+    drawSafeZone(data.safe_zone, originX, originY, scale, fullW, fullH);
+
     var displayPoints = spreadOverlaps(points);
     lastMapPoints = displayPoints;
     drawDots(displayPoints);
@@ -778,10 +852,12 @@
     mapFullW = fullW;
     mapFullH = fullH;
     if (!manualViewActive) {
-      // Off-map players count too, so the auto-zoom keeps the Off Map box
-      // in view when someone's in there.
-      var box = computeMapViewBox(points, fullW, fullH);
-      svg.setAttribute("viewBox", box.join(" "));
+      // No auto-zoom (the user, 2026-09-29): the first draw opens one zoom step in (the zoom-in
+      // button's 0.7), centred on the map, and after that the view only moves when someone
+      // zooms, pans or follows. Nothing is stored, so a refresh starts from here again.
+      var startW = fullW * 0.7, startH = fullH * 0.7;
+      svg.setAttribute("viewBox", [(fullW - startW) / 2, (fullH - startH) / 2, startW, startH].join(" "));
+      manualViewActive = true;
       updateZoomButtonState();
     } else if (followingPlayer) {
       recenterOnFollowedPlayer();
@@ -1693,6 +1769,18 @@
 
     var COLOR_NAMES = { good: "Green", accent: "Blue", purple: "Purple", warn: "Orange", bad: "Red" };
     var state = [];
+    var worldList = [];               // [{slug, label}] from /api/admin/worlds, for the "Shown on" boxes
+
+    function worldBoxesHtml(link) {
+      if (!worldList.length) return "";
+      var on = link.worlds || [];
+      return '<span class="links-row-worlds" title="Tick the worlds this link shows on. None ticked = every world.">Shown on: ' +
+        worldList.map(function (w) {
+          return '<label class="links-row-world"><input type="checkbox" value="' + w.slug + '"' +
+            (on.indexOf(w.slug) >= 0 ? " checked" : "") + "> " + String(w.label).replace(/</g, "&lt;") + "</label>";
+        }).join(" ") +
+        (on.length ? "" : ' <em class="links-row-worlds-all">(all worlds)</em>') + "</span>";
+    }
 
     function colorOptions(selected) {
       return Object.keys(COLOR_NAMES).map(function (key) {
@@ -1712,6 +1800,7 @@
           '<select class="links-row-color">' + colorOptions(link.color) + "</select>" +
           '<input type="text" class="links-row-group" maxlength="40" placeholder="Group" value="' + link.group.replace(/"/g, "&quot;") + '">' +
           imagePickerHtml(link.icon, "No icon", "Remove icon") +
+          worldBoxesHtml(link) +
           '<button type="button" class="button-secondary links-row-up"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">&uarr;</button>' +
           '<button type="button" class="button-secondary links-row-down"' + (i === items.length - 1 ? " disabled" : "") + ' aria-label="Move down">&darr;</button>' +
           '<button type="button" class="button-secondary links-row-delete" aria-label="Delete">&#x2715;</button>';
@@ -1721,6 +1810,13 @@
         row.querySelector(".links-row-color").addEventListener("change", function (e) { link.color = e.target.value; });
         row.querySelector(".links-row-group").addEventListener("input", function (e) { link.group = e.target.value; });
         wireImagePicker(row, function (name) { link.icon = name; render(); }, "Icon uploaded — click Save Links to apply it.");
+        row.querySelectorAll(".links-row-world input").forEach(function (box) {
+          box.addEventListener("change", function () {
+            link.worlds = Array.prototype.slice.call(row.querySelectorAll(".links-row-world input:checked"))
+              .map(function (b) { return b.value; });
+            render();
+          });
+        });
         row.querySelector(".links-row-up").addEventListener("click", function () {
           if (i === 0) return;
           items.splice(i - 1, 0, items.splice(i, 1)[0]);
@@ -1740,7 +1836,14 @@
       });
     }
 
-    fetch("/api/admin/links", { credentials: "same-origin" })
+    fetch("/api/admin/worlds", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = Array.isArray(data) ? data : (data && data.worlds) || [];
+        worldList = list.filter(function (w) { return w && w.slug; }).map(function (w) { return { slug: w.slug, label: w.label || w.slug }; });
+      })
+      .catch(function () { worldList = []; })
+      .then(function () { return fetch("/api/admin/links", { credentials: "same-origin" }); })
       .then(function (r) { return r.json(); })
       .then(function (data) { state = data; render(); })
       .catch(function () { showMessage("Could not load links.", true); });
@@ -1750,7 +1853,7 @@
       var url = addUrl.value.trim();
       var group = addGroup.value.trim();
       if (!label || !url || !group) return;
-      state.push({ label: label, url: url, color: addColor.value, group: group, icon: "" });
+      state.push({ label: label, url: url, color: addColor.value, group: group, icon: "", worlds: [] });
       addLabel.value = "";
       addUrl.value = "";
       addGroup.value = "";

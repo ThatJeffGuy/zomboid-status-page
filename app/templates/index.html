@@ -105,7 +105,8 @@
 
       <p class="hint map-mobile-note">Live map isn't available on small screens &mdash; check back on a bigger one.</p>
 
-      <div id="map-view" data-poll-url="/api/{{ world.slug }}/map/positions" data-poll-interval="10000" data-is-admin="{{ 'true' if is_admin else 'false' }}">
+      {% set offmap_x = 560 if world.slug == "second" else 660 %}
+      <div id="map-view" data-offmap-x="{{ offmap_x }}" data-poll-url="/api/{{ world.slug }}/map/positions" data-poll-interval="10000" data-is-admin="{{ 'true' if is_admin else 'false' }}">
         <div id="map-canvas">
           <div class="map-canvas-controls">
             <button type="button" id="map-chat-toggle-btn" class="map-control-btn map-chat-toggle-btn" title="Show/hide chat in fullscreen">&#x1F4AC; Hide Chat</button>
@@ -151,9 +152,10 @@
           <svg id="map-svg" viewBox="0 0 1400 1386" preserveAspectRatio="xMidYMid meet">
             <image id="map-texture" href="{{ map_url or '/static/map-overview.webp' }}" x="0" y="0" width="1400" height="1386" preserveAspectRatio="none"></image>
             <g id="map-offmap-zone">
-              <rect x="660" y="60" width="300" height="230" class="map-offmap-zone-rect"></rect>
-              <text x="676" y="90" class="map-offmap-zone-label">Off Map</text>
+              <rect x="{{ offmap_x }}" y="60" width="300" height="230" class="map-offmap-zone-rect"></rect>
+              <text x="{{ offmap_x + 16 }}" y="90" class="map-offmap-zone-label">Off Map</text>
             </g>
+            <g id="map-safezone"></g>
             <g id="map-dots"></g>
             <g id="map-pings"></g>
           </svg>
